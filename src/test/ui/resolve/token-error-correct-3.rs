@@ -1,5 +1,3 @@
-// ignore-cloudabi no std::fs support
-
 // Test that we do some basic error correction in the tokeniser (and don't spew
 // too many bogus errors).
 
@@ -15,7 +13,6 @@ pub mod raw {
             callback(path.as_ref();
             //~^ ERROR expected one of
             fs::create_dir_all(path.as_ref()).map(|()| true)
-            //~^ ERROR mismatched types
         } else {
             //~^ ERROR expected one of `.`, `;`, `?`, `}`, or an operator, found `)`
             Ok(false);

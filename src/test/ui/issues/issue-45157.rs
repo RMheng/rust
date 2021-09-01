@@ -1,7 +1,5 @@
 #![allow(unused)]
-#![feature(nll)]
 
-// ignore-tidy-linelength
 
 #[derive(Clone, Copy, Default)]
 struct S {

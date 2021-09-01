@@ -1,4 +1,4 @@
-// build-pass (FIXME(62277): could be check-pass?)
+// build-pass
 #![allow(dead_code)]
 #![allow(unused_imports)]
 #![allow(stable_features)]
@@ -7,7 +7,6 @@
 // had to do with codegen ignoring binders.
 
 // pretty-expanded FIXME #23616
-// ignore-cloudabi no std::fs
 
 #![feature(os)]
 

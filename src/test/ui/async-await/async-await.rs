@@ -1,9 +1,13 @@
 // run-pass
 
+// revisions: default nomiropt thirunsafeck
+//[nomiropt]compile-flags: -Z mir-opt-level=0
+//[thirunsafeck]compile-flags: -Zthir-unsafeck
+
+#![allow(unused)]
+
 // edition:2018
 // aux-build:arc_wake.rs
-
-#![feature(async_await)]
 
 extern crate arc_wake;
 
@@ -70,6 +74,8 @@ fn async_nonmove_block(x: u8) -> impl Future<Output = u8> {
     }
 }
 
+// see async-closure.rs for async_closure + async_closure_in_unsafe_block
+
 async fn async_fn(x: u8) -> u8 {
     wake_and_yield_once().await;
     x
@@ -97,12 +103,10 @@ fn async_fn_with_impl_future_named_lifetime<'a>(x: &'a u8) -> impl Future<Output
     }
 }
 
-/* FIXME(cramertj) support when `existential type T<'a, 'b>:;` works
 async fn async_fn_multiple_args(x: &u8, _y: &u8) -> u8 {
-    await!(wake_and_yield_once());
+    wake_and_yield_once().await;
     *x
 }
-*/
 
 async fn async_fn_multiple_args_named_lifetime<'a>(x: &'a u8, _y: &'a u8) -> u8 {
     wake_and_yield_once().await;
@@ -118,6 +122,18 @@ fn async_fn_with_internal_borrow(y: u8) -> impl Future<Output = u8> {
 async unsafe fn unsafe_async_fn(x: u8) -> u8 {
     wake_and_yield_once().await;
     x
+}
+
+unsafe fn unsafe_fn(x: u8) -> u8 {
+    x
+}
+
+fn async_block_in_unsafe_block(x: u8) -> impl Future<Output = u8> {
+    unsafe {
+        async move {
+            unsafe_fn(unsafe_async_fn(x).await)
+        }
+    }
 }
 
 struct Foo;
@@ -176,6 +192,7 @@ fn main() {
         async_fn,
         generic_async_fn,
         async_fn_with_internal_borrow,
+        async_block_in_unsafe_block,
         Foo::async_assoc_item,
         |x| {
             async move {
