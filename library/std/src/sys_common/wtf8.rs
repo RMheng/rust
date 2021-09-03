@@ -785,7 +785,7 @@ pub fn is_code_point_boundary(slice: &Wtf8, index: usize) -> bool {
 /// Copied from core::str::raw::slice_unchecked
 #[inline]
 pub unsafe fn slice_unchecked(s: &Wtf8, begin: usize, end: usize) -> &Wtf8 {
-    // memory layout of an &[u8] and &Wtf8 are the same
+    // memory layout of a &[u8] and &Wtf8 are the same
     Wtf8::from_bytes_unchecked(slice::from_raw_parts(s.bytes.as_ptr().add(begin), end - begin))
 }
 
@@ -853,10 +853,11 @@ impl<'a> Iterator for EncodeWide<'a> {
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         let (low, high) = self.code_points.size_hint();
+        let ext = (self.extra != 0) as usize;
         // every code point gets either one u16 or two u16,
         // so this iterator is between 1 or 2 times as
         // long as the underlying iterator.
-        (low, high.and_then(|n| n.checked_mul(2)))
+        (low + ext, high.and_then(|n| n.checked_mul(2)).and_then(|n| n.checked_add(ext)))
     }
 }
 

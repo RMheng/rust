@@ -4,9 +4,8 @@ use rustc_driver::abort_on_err;
 use rustc_errors::emitter::{Emitter, EmitterWriter};
 use rustc_errors::json::JsonEmitter;
 use rustc_feature::UnstableFeatures;
-use rustc_hir::def::Namespace::TypeNS;
 use rustc_hir::def::Res;
-use rustc_hir::def_id::{DefId, LocalDefId, CRATE_DEF_INDEX};
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_hir::HirId;
 use rustc_hir::{
     intravisit::{self, NestedVisitorMap, Visitor},
@@ -23,14 +22,14 @@ use rustc_session::DiagnosticOutput;
 use rustc_session::Session;
 use rustc_span::source_map;
 use rustc_span::symbol::sym;
-use rustc_span::{Span, DUMMY_SP};
+use rustc_span::Span;
 
 use std::cell::RefCell;
 use std::mem;
 use std::rc::Rc;
 
 use crate::clean::inline::build_external_trait;
-use crate::clean::{self, FakeDefId, TraitWithExtraInfo};
+use crate::clean::{self, ItemId, TraitWithExtraInfo};
 use crate::config::{Options as RustdocOptions, OutputFormat, RenderOptions};
 use crate::formats::cache::Cache;
 use crate::passes::{self, Condition::*, ConditionalPass};
@@ -78,7 +77,7 @@ crate struct DocContext<'tcx> {
     /// This same cache is used throughout rustdoc, including in [`crate::html::render`].
     crate cache: Cache,
     /// Used by [`clean::inline`] to tell if an item has already been inlined.
-    crate inlined: FxHashSet<FakeDefId>,
+    crate inlined: FxHashSet<ItemId>,
     /// Used by `calculate_doc_coverage`.
     crate output_format: OutputFormat,
 }
@@ -128,12 +127,13 @@ impl<'tcx> DocContext<'tcx> {
 
     /// Like `hir().local_def_id_to_hir_id()`, but skips calling it on fake DefIds.
     /// (This avoids a slice-index-out-of-bounds panic.)
-    crate fn as_local_hir_id(tcx: TyCtxt<'_>, def_id: FakeDefId) -> Option<HirId> {
+    crate fn as_local_hir_id(tcx: TyCtxt<'_>, def_id: ItemId) -> Option<HirId> {
         match def_id {
-            FakeDefId::Real(real_id) => {
+            ItemId::DefId(real_id) => {
                 real_id.as_local().map(|def_id| tcx.hir().local_def_id_to_hir_id(def_id))
             }
-            FakeDefId::Fake(_, _) => None,
+            // FIXME: Can this be `Some` for `Auto` or `Blanket`?
+            _ => None,
         }
     }
 }
@@ -264,7 +264,7 @@ crate fn create_config(
         stderr: None,
         lint_caps,
         parse_sess_created: None,
-        register_lints: Some(box crate::lint::register_lints),
+        register_lints: Some(Box::new(crate::lint::register_lints)),
         override_queries: Some(|_sess, providers, _external_providers| {
             // Most lints will require typechecking, so just don't run them.
             providers.lint_mod = |_, _| {};
@@ -300,42 +300,13 @@ crate fn create_config(
 }
 
 crate fn create_resolver<'a>(
-    externs: config::Externs,
     queries: &Queries<'a>,
     sess: &Session,
 ) -> Rc<RefCell<interface::BoxedResolver>> {
-    let extern_names: Vec<String> = externs
-        .iter()
-        .filter(|(_, entry)| entry.add_prelude)
-        .map(|(name, _)| name)
-        .cloned()
-        .collect();
+    let (krate, resolver, _) = &*abort_on_err(queries.expansion(), sess).peek();
+    let resolver = resolver.clone();
 
-    let (_, resolver, _) = &*abort_on_err(queries.expansion(), sess).peek();
-    let resolver = resolver.borrow();
-
-    // Before we actually clone it, let's force all the extern'd crates to
-    // actually be loaded, just in case they're only referred to inside
-    // intra-doc links
-    resolver.borrow_mut().access(|resolver| {
-        sess.time("load_extern_crates", || {
-            for extern_name in &extern_names {
-                debug!("loading extern crate {}", extern_name);
-                if let Err(()) = resolver
-                    .resolve_str_path_error(
-                        DUMMY_SP,
-                        extern_name,
-                        TypeNS,
-                        LocalDefId { local_def_index: CRATE_DEF_INDEX }.to_def_id(),
-                  ) {
-                    warn!("unable to resolve external crate {} (do you have an unused `--extern` crate?)", extern_name)
-                  }
-            }
-        });
-    });
-
-    // Now we're good to clone the resolver because everything should be loaded
-    resolver.clone()
+    crate::passes::collect_intra_doc_links::load_intra_link_crates(resolver, krate)
 }
 
 crate fn run_global_ctxt(
@@ -374,15 +345,8 @@ crate fn run_global_ctxt(
     });
     rustc_passes::stability::check_unused_or_stable_features(tcx);
 
-    let access_levels = tcx.privacy_access_levels(());
-    // Convert from a HirId set to a DefId set since we don't always have easy access
-    // to the map from defid -> hirid
     let access_levels = AccessLevels {
-        map: access_levels
-            .map
-            .iter()
-            .map(|(&k, &v)| (tcx.hir().local_def_id(k).to_def_id(), v))
-            .collect(),
+        map: tcx.privacy_access_levels(()).map.iter().map(|(k, v)| (k.to_def_id(), *v)).collect(),
     };
 
     let mut ctxt = DocContext {
@@ -535,9 +499,7 @@ crate fn run_global_ctxt(
 
     let render_options = ctxt.render_options;
     let mut cache = ctxt.cache;
-    krate = tcx.sess.time("create_format_cache", || {
-        cache.populate(krate, tcx, &render_options.extern_html_root_urls, &render_options.output)
-    });
+    krate = tcx.sess.time("create_format_cache", || cache.populate(krate, tcx, &render_options));
 
     // The main crate doc comments are always collapsed.
     krate.collapsed = true;

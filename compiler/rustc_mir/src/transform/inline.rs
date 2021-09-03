@@ -284,7 +284,7 @@ impl Inliner<'tcx> {
         &self,
         callsite: &CallSite<'tcx>,
         callee_attrs: &CodegenFnAttrs,
-    ) -> Result<(), &'satic str> {
+    ) -> Result<(), &'static str> {
         if let InlineAttr::Never = callee_attrs.inline {
             return Err("never inline hint");
         }
@@ -520,7 +520,7 @@ impl Inliner<'tcx> {
                         let temp = Place::from(self.new_call_temp(caller_body, &callsite, dest_ty));
                         caller_body[callsite.block].statements.push(Statement {
                             source_info: callsite.source_info,
-                            kind: StatementKind::Assign(box (temp, dest)),
+                            kind: StatementKind::Assign(Box::new((temp, dest))),
                         });
                         self.tcx.mk_place_deref(temp)
                     } else {
@@ -607,15 +607,9 @@ impl Inliner<'tcx> {
                 }
 
                 // Insert all of the (mapped) parts of the callee body into the caller.
-                caller_body.local_decls.extend(
-                    // FIXME(eddyb) make `Range<Local>` iterable so that we can use
-                    // `callee_body.local_decls.drain(callee_body.vars_and_temps())`
-                    callee_body
-                        .vars_and_temps_iter()
-                        .map(|local| callee_body.local_decls[local].clone()),
-                );
-                caller_body.source_scopes.extend(callee_body.source_scopes.drain(..));
-                caller_body.var_debug_info.extend(callee_body.var_debug_info.drain(..));
+                caller_body.local_decls.extend(callee_body.drain_vars_and_temps());
+                caller_body.source_scopes.extend(&mut callee_body.source_scopes.drain(..));
+                caller_body.var_debug_info.append(&mut callee_body.var_debug_info);
                 caller_body.basic_blocks_mut().extend(callee_body.basic_blocks_mut().drain(..));
 
                 caller_body[callsite.block].terminator = Some(Terminator {
@@ -729,7 +723,7 @@ impl Inliner<'tcx> {
         let local = self.new_call_temp(caller_body, callsite, arg_ty);
         caller_body[callsite.block].statements.push(Statement {
             source_info: callsite.source_info,
-            kind: StatementKind::Assign(box (Place::from(local), Rvalue::Use(arg))),
+            kind: StatementKind::Assign(Box::new((Place::from(local), Rvalue::Use(arg)))),
         });
         local
     }
@@ -836,10 +830,11 @@ impl<'a, 'tcx> MutVisitor<'tcx> for Integrator<'a, 'tcx> {
 
     fn visit_span(&mut self, span: &mut Span) {
         let mut expn_data =
-            ExpnData::default(ExpnKind::Inlined, *span, self.tcx.sess.edition(), None);
+            ExpnData::default(ExpnKind::Inlined, *span, self.tcx.sess.edition(), None, None);
         expn_data.def_site = self.body_span;
         // Make sure that all spans track the fact that they were inlined.
-        *span = self.callsite_span.fresh_expansion(expn_data);
+        *span =
+            self.callsite_span.fresh_expansion(expn_data, self.tcx.create_stable_hashing_context());
     }
 
     fn visit_place(&mut self, place: &mut Place<'tcx>, context: PlaceContext, location: Location) {

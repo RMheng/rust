@@ -25,10 +25,15 @@ macro_rules! unlikely {
 }
 
 // All these modules are technically private and only exposed for coretests:
+#[cfg(not(no_fp_fmt_parse))]
 pub mod bignum;
+#[cfg(not(no_fp_fmt_parse))]
 pub mod dec2flt;
+#[cfg(not(no_fp_fmt_parse))]
 pub mod diy_float;
+#[cfg(not(no_fp_fmt_parse))]
 pub mod flt2dec;
+pub mod fmt;
 
 #[macro_use]
 mod int_macros; // import int_impl!
@@ -36,13 +41,19 @@ mod int_macros; // import int_impl!
 mod uint_macros; // import uint_impl!
 
 mod error;
+mod int_log10;
 mod nonzero;
+#[unstable(feature = "saturating_int_impl", issue = "87920")]
+mod saturating;
 mod wrapping;
 
+#[unstable(feature = "saturating_int_impl", issue = "87920")]
+pub use saturating::Saturating;
 #[stable(feature = "rust1", since = "1.0.0")]
 pub use wrapping::Wrapping;
 
 #[stable(feature = "rust1", since = "1.0.0")]
+#[cfg(not(no_fp_fmt_parse))]
 pub use dec2flt::ParseFloatError;
 
 #[stable(feature = "rust1", since = "1.0.0")]
@@ -57,12 +68,7 @@ pub use nonzero::{NonZeroI128, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI8, No
 #[stable(feature = "try_from", since = "1.34.0")]
 pub use error::TryFromIntError;
 
-#[unstable(
-    feature = "int_error_matching",
-    reason = "it can be useful to match errors when making error messages \
-              for integer parsing",
-    issue = "22639"
-)]
+#[stable(feature = "int_error_matching", since = "1.55.0")]
 pub use error::IntErrorKind;
 
 macro_rules! usize_isize_to_xe_bytes_doc {
@@ -87,28 +93,105 @@ depending on the target pointer size.
     };
 }
 
+macro_rules! widening_impl {
+    ($SelfT:ty, $WideT:ty, $BITS:literal) => {
+        /// Calculates the complete product `self * rhs` without the possibility to overflow.
+        ///
+        /// This returns the low-order (wrapping) bits and the high-order (overflow) bits
+        /// of the result as two separate values, in that order.
+        ///
+        /// # Examples
+        ///
+        /// Basic usage:
+        ///
+        /// Please note that this example is shared between integer types.
+        /// Which explains why `u32` is used here.
+        ///
+        /// ```
+        /// #![feature(bigint_helper_methods)]
+        /// assert_eq!(5u32.widening_mul(2), (10, 0));
+        /// assert_eq!(1_000_000_000u32.widening_mul(10), (1410065408, 2));
+        /// ```
+        #[unstable(feature = "bigint_helper_methods", issue = "85532")]
+        #[rustc_const_unstable(feature = "const_bigint_helper_methods", issue = "85532")]
+        #[must_use = "this returns the result of the operation, \
+                      without modifying the original"]
+        #[inline]
+        pub const fn widening_mul(self, rhs: Self) -> (Self, Self) {
+            // note: longer-term this should be done via an intrinsic,
+            //   but for now we can deal without an impl for u128/i128
+            // SAFETY: overflow will be contained within the wider types
+            let wide = unsafe { (self as $WideT).unchecked_mul(rhs as $WideT) };
+            (wide as $SelfT, (wide >> $BITS) as $SelfT)
+        }
+
+        /// Calculates the "full multiplication" `self * rhs + carry`
+        /// without the possibility to overflow.
+        ///
+        /// This returns the low-order (wrapping) bits and the high-order (overflow) bits
+        /// of the result as two separate values, in that order.
+        ///
+        /// Performs "long multiplication" which takes in an extra amount to add, and may return an
+        /// additional amount of overflow. This allows for chaining together multiple
+        /// multiplications to create "big integers" which represent larger values.
+        ///
+        /// # Examples
+        ///
+        /// Basic usage:
+        ///
+        /// Please note that this example is shared between integer types.
+        /// Which explains why `u32` is used here.
+        ///
+        /// ```
+        /// #![feature(bigint_helper_methods)]
+        /// assert_eq!(5u32.carrying_mul(2, 0), (10, 0));
+        /// assert_eq!(5u32.carrying_mul(2, 10), (20, 0));
+        /// assert_eq!(1_000_000_000u32.carrying_mul(10, 0), (1410065408, 2));
+        /// assert_eq!(1_000_000_000u32.carrying_mul(10, 10), (1410065418, 2));
+        /// ```
+        #[unstable(feature = "bigint_helper_methods", issue = "85532")]
+        #[rustc_const_unstable(feature = "bigint_helper_methods", issue = "85532")]
+        #[must_use = "this returns the result of the operation, \
+                      without modifying the original"]
+        #[inline]
+        pub const fn carrying_mul(self, rhs: Self, carry: Self) -> (Self, Self) {
+            // note: longer-term this should be done via an intrinsic,
+            //   but for now we can deal without an impl for u128/i128
+            // SAFETY: overflow will be contained within the wider types
+            let wide = unsafe {
+                (self as $WideT).unchecked_mul(rhs as $WideT).unchecked_add(carry as $WideT)
+            };
+            (wide as $SelfT, (wide >> $BITS) as $SelfT)
+        }
+    };
+}
+
 #[lang = "i8"]
 impl i8 {
-    int_impl! { i8, i8, u8, 8, -128, 127, 2, "-0x7e", "0xa", "0x12", "0x12", "0x48",
+    widening_impl! { i8, i16, 8 }
+    int_impl! { i8, i8, u8, 8, 7, -128, 127, 2, "-0x7e", "0xa", "0x12", "0x12", "0x48",
     "[0x12]", "[0x12]", "", "" }
 }
 
 #[lang = "i16"]
 impl i16 {
-    int_impl! { i16, i16, u16, 16, -32768, 32767, 4, "-0x5ffd", "0x3a", "0x1234", "0x3412",
+    widening_impl! { i16, i32, 16 }
+    int_impl! { i16, i16, u16, 16, 15, -32768, 32767, 4, "-0x5ffd", "0x3a", "0x1234", "0x3412",
     "0x2c48", "[0x34, 0x12]", "[0x12, 0x34]", "", "" }
 }
 
 #[lang = "i32"]
 impl i32 {
-    int_impl! { i32, i32, u32, 32, -2147483648, 2147483647, 8, "0x10000b3", "0xb301",
+    widening_impl! { i32, i64, 32 }
+    int_impl! { i32, i32, u32, 32, 31, -2147483648, 2147483647, 8, "0x10000b3", "0xb301",
     "0x12345678", "0x78563412", "0x1e6a2c48", "[0x78, 0x56, 0x34, 0x12]",
     "[0x12, 0x34, 0x56, 0x78]", "", "" }
 }
 
 #[lang = "i64"]
 impl i64 {
-    int_impl! { i64, i64, u64, 64, -9223372036854775808, 9223372036854775807, 12,
+    widening_impl! { i64, i128, 64 }
+    int_impl! { i64, i64, u64, 64, 63, -9223372036854775808, 9223372036854775807, 12,
     "0xaa00000000006e1", "0x6e10aa", "0x1234567890123456", "0x5634129078563412",
     "0x6a2c48091e6a2c48", "[0x56, 0x34, 0x12, 0x90, 0x78, 0x56, 0x34, 0x12]",
     "[0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x56]", "", "" }
@@ -116,7 +199,7 @@ impl i64 {
 
 #[lang = "i128"]
 impl i128 {
-    int_impl! { i128, i128, u128, 128, -170141183460469231731687303715884105728,
+    int_impl! { i128, i128, u128, 128, 127, -170141183460469231731687303715884105728,
     170141183460469231731687303715884105727, 16,
     "0x13f40000000000000000000000004f76", "0x4f7613f4", "0x12345678901234567890123456789012",
     "0x12907856341290785634129078563412", "0x48091e6a2c48091e6a2c48091e6a2c48",
@@ -129,7 +212,8 @@ impl i128 {
 #[cfg(target_pointer_width = "16")]
 #[lang = "isize"]
 impl isize {
-    int_impl! { isize, i16, usize, 16, -32768, 32767, 4, "-0x5ffd", "0x3a", "0x1234",
+    widening_impl! { isize, i32, 16 }
+    int_impl! { isize, i16, usize, 16, 15, -32768, 32767, 4, "-0x5ffd", "0x3a", "0x1234",
     "0x3412", "0x2c48", "[0x34, 0x12]", "[0x12, 0x34]",
     usize_isize_to_xe_bytes_doc!(), usize_isize_from_xe_bytes_doc!() }
 }
@@ -137,7 +221,8 @@ impl isize {
 #[cfg(target_pointer_width = "32")]
 #[lang = "isize"]
 impl isize {
-    int_impl! { isize, i32, usize, 32, -2147483648, 2147483647, 8, "0x10000b3", "0xb301",
+    widening_impl! { isize, i64, 32 }
+    int_impl! { isize, i32, usize, 32, 31, -2147483648, 2147483647, 8, "0x10000b3", "0xb301",
     "0x12345678", "0x78563412", "0x1e6a2c48", "[0x78, 0x56, 0x34, 0x12]",
     "[0x12, 0x34, 0x56, 0x78]",
     usize_isize_to_xe_bytes_doc!(), usize_isize_from_xe_bytes_doc!() }
@@ -146,7 +231,8 @@ impl isize {
 #[cfg(target_pointer_width = "64")]
 #[lang = "isize"]
 impl isize {
-    int_impl! { isize, i64, usize, 64, -9223372036854775808, 9223372036854775807,
+    widening_impl! { isize, i128, 64 }
+    int_impl! { isize, i64, usize, 64, 63, -9223372036854775808, 9223372036854775807,
     12, "0xaa00000000006e1", "0x6e10aa",  "0x1234567890123456", "0x5634129078563412",
      "0x6a2c48091e6a2c48", "[0x56, 0x34, 0x12, 0x90, 0x78, 0x56, 0x34, 0x12]",
      "[0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x56]",
@@ -158,6 +244,7 @@ const ASCII_CASE_MASK: u8 = 0b0010_0000;
 
 #[lang = "u8"]
 impl u8 {
+    widening_impl! { u8, u16, 8 }
     uint_impl! { u8, u8, 8, 255, 2, "0x82", "0xa", "0x12", "0x12", "0x48", "[0x12]",
     "[0x12]", "", "" }
 
@@ -595,8 +682,8 @@ impl u8 {
     /// before using this function.
     ///
     /// [infra-aw]: https://infra.spec.whatwg.org/#ascii-whitespace
-    /// [pct]: http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap07.html#tag_07_03_01
-    /// [bfs]: http://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html#tag_18_06_05
+    /// [pct]: https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap07.html#tag_07_03_01
+    /// [bfs]: https://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html#tag_18_06_05
     ///
     /// # Examples
     ///
@@ -691,18 +778,21 @@ impl u8 {
 
 #[lang = "u16"]
 impl u16 {
+    widening_impl! { u16, u32, 16 }
     uint_impl! { u16, u16, 16, 65535, 4, "0xa003", "0x3a", "0x1234", "0x3412", "0x2c48",
     "[0x34, 0x12]", "[0x12, 0x34]", "", "" }
 }
 
 #[lang = "u32"]
 impl u32 {
+    widening_impl! { u32, u64, 32 }
     uint_impl! { u32, u32, 32, 4294967295, 8, "0x10000b3", "0xb301", "0x12345678",
     "0x78563412", "0x1e6a2c48", "[0x78, 0x56, 0x34, 0x12]", "[0x12, 0x34, 0x56, 0x78]", "", "" }
 }
 
 #[lang = "u64"]
 impl u64 {
+    widening_impl! { u64, u128, 64 }
     uint_impl! { u64, u64, 64, 18446744073709551615, 12, "0xaa00000000006e1", "0x6e10aa",
     "0x1234567890123456", "0x5634129078563412", "0x6a2c48091e6a2c48",
     "[0x56, 0x34, 0x12, 0x90, 0x78, 0x56, 0x34, 0x12]",
@@ -725,6 +815,7 @@ impl u128 {
 #[cfg(target_pointer_width = "16")]
 #[lang = "usize"]
 impl usize {
+    widening_impl! { usize, u32, 16 }
     uint_impl! { usize, u16, 16, 65535, 4, "0xa003", "0x3a", "0x1234", "0x3412", "0x2c48",
     "[0x34, 0x12]", "[0x12, 0x34]",
     usize_isize_to_xe_bytes_doc!(), usize_isize_from_xe_bytes_doc!() }
@@ -732,6 +823,7 @@ impl usize {
 #[cfg(target_pointer_width = "32")]
 #[lang = "usize"]
 impl usize {
+    widening_impl! { usize, u64, 32 }
     uint_impl! { usize, u32, 32, 4294967295, 8, "0x10000b3", "0xb301", "0x12345678",
     "0x78563412", "0x1e6a2c48", "[0x78, 0x56, 0x34, 0x12]", "[0x12, 0x34, 0x56, 0x78]",
     usize_isize_to_xe_bytes_doc!(), usize_isize_from_xe_bytes_doc!() }
@@ -740,6 +832,7 @@ impl usize {
 #[cfg(target_pointer_width = "64")]
 #[lang = "usize"]
 impl usize {
+    widening_impl! { usize, u128, 64 }
     uint_impl! { usize, u64, 64, 18446744073709551615, 12, "0xaa00000000006e1", "0x6e10aa",
     "0x1234567890123456", "0x5634129078563412", "0x6a2c48091e6a2c48",
     "[0x56, 0x34, 0x12, 0x90, 0x78, 0x56, 0x34, 0x12]",
@@ -845,7 +938,7 @@ fn from_str_radix<T: FromStrRadixHelper>(src: &str, radix: u32) -> Result<T, Par
     use self::ParseIntError as PIE;
 
     assert!(
-        radix >= 2 && radix <= 36,
+        (2..=36).contains(&radix),
         "from_str_radix_int: must lie in the range `[2, 36]` - found {}",
         radix
     );

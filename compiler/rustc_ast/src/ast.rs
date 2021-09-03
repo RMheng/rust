@@ -284,7 +284,7 @@ impl ParenthesizedArgs {
 
 pub use crate::node_id::{NodeId, CRATE_NODE_ID, DUMMY_NODE_ID};
 
-/// A modifier on a bound, e.g., `?Sized` or `?const Trait`.
+/// A modifier on a bound, e.g., `?Sized` or `~const Trait`.
 ///
 /// Negative bounds should also be handled here.
 #[derive(Copy, Clone, PartialEq, Eq, Encodable, Decodable, Debug)]
@@ -295,10 +295,10 @@ pub enum TraitBoundModifier {
     /// `?Trait`
     Maybe,
 
-    /// `?const Trait`
+    /// `~const Trait`
     MaybeConst,
 
-    /// `?const ?Trait`
+    /// `~const ?Trait`
     //
     // This parses but will be rejected during AST validation.
     MaybeConstMaybe,
@@ -332,10 +332,13 @@ pub type GenericBounds = Vec<GenericBound>;
 pub enum ParamKindOrd {
     Lifetime,
     Type,
-    // `unordered` is only `true` if `sess.has_features().const_generics`
-    // is active. Specifically, if it's only `min_const_generics`, it will still require
+    // `unordered` is only `true` if `sess.unordered_const_ty_params()`
+    // returns true. Specifically, if it's only `min_const_generics`, it will still require
     // ordering consts after types.
     Const { unordered: bool },
+    // `Infer` is not actually constructed directly from the AST, but is implicitly constructed
+    // during HIR lowering, and `ParamKindOrd` will implicitly order inferred variables last.
+    Infer,
 }
 
 impl Ord for ParamKindOrd {
@@ -343,7 +346,7 @@ impl Ord for ParamKindOrd {
         use ParamKindOrd::*;
         let to_int = |v| match v {
             Lifetime => 0,
-            Type | Const { unordered: true } => 1,
+            Infer | Type | Const { unordered: true } => 1,
             // technically both consts should be ordered equally,
             // but only one is ever encountered at a time, so this is
             // fine.
@@ -371,6 +374,7 @@ impl fmt::Display for ParamKindOrd {
             ParamKindOrd::Lifetime => "lifetime".fmt(f),
             ParamKindOrd::Type => "type".fmt(f),
             ParamKindOrd::Const { .. } => "const".fmt(f),
+            ParamKindOrd::Infer => "infer".fmt(f),
         }
     }
 }
@@ -677,7 +681,9 @@ pub enum BindingMode {
 
 #[derive(Clone, Encodable, Decodable, Debug)]
 pub enum RangeEnd {
+    /// `..=` or `...`
     Included(RangeSyntax),
+    /// `..`
     Excluded,
 }
 
@@ -689,6 +695,7 @@ pub enum RangeSyntax {
     DotDotEq,
 }
 
+/// All the different flavors of pattern that Rust recognizes.
 #[derive(Clone, Encodable, Decodable, Debug)]
 pub enum PatKind {
     /// Represents a wildcard pattern (`_`).
@@ -729,7 +736,7 @@ pub enum PatKind {
     /// A literal.
     Lit(P<Expr>),
 
-    /// A range pattern (e.g., `1...2`, `1..=2` or `1..2`).
+    /// A range pattern (e.g., `1...2`, `1..2`, `1..`, `..2`, `1..=2`, `..=2`).
     Range(Option<P<Expr>>, Option<P<Expr>>, Spanned<RangeEnd>),
 
     /// A slice pattern `[a, b, c]`.
@@ -998,11 +1005,40 @@ pub struct Local {
     pub id: NodeId,
     pub pat: P<Pat>,
     pub ty: Option<P<Ty>>,
-    /// Initializer expression to set the value, if any.
-    pub init: Option<P<Expr>>,
+    pub kind: LocalKind,
     pub span: Span,
     pub attrs: AttrVec,
     pub tokens: Option<LazyTokenStream>,
+}
+
+#[derive(Clone, Encodable, Decodable, Debug)]
+pub enum LocalKind {
+    /// Local declaration.
+    /// Example: `let x;`
+    Decl,
+    /// Local declaration with an initializer.
+    /// Example: `let x = y;`
+    Init(P<Expr>),
+    /// Local declaration with an initializer and an `else` clause.
+    /// Example: `let Some(x) = y else { return };`
+    InitElse(P<Expr>, P<Block>),
+}
+
+impl LocalKind {
+    pub fn init(&self) -> Option<&Expr> {
+        match self {
+            Self::Decl => None,
+            Self::Init(i) | Self::InitElse(i, _) => Some(i),
+        }
+    }
+
+    pub fn init_else_opt(&self) -> Option<(&Expr, Option<&Block>)> {
+        match self {
+            Self::Decl => None,
+            Self::Init(init) => Some((init, None)),
+            Self::InitElse(init, els) => Some((init, Some(els))),
+        }
+    }
 }
 
 /// An arm of a 'match'.
@@ -1017,7 +1053,7 @@ pub struct Local {
 /// ```
 #[derive(Clone, Encodable, Decodable, Debug)]
 pub struct Arm {
-    pub attrs: Vec<Attribute>,
+    pub attrs: AttrVec,
     /// Match arm pattern, e.g. `10` in `match foo { 10 => {}, _ => {} }`
     pub pat: P<Pat>,
     /// Match arm guard, e.g. `n > 10` in `match foo { n if n > 10 => {}, _ => {} }`
@@ -1295,7 +1331,9 @@ pub enum ExprKind {
     Type(P<Expr>, P<Ty>),
     /// A `let pat = expr` expression that is only semantically allowed in the condition
     /// of `if` / `while` expressions. (e.g., `if let 0 = x { .. }`).
-    Let(P<Pat>, P<Expr>),
+    ///
+    /// `Span` represents the whole `let pat = expr` statement.
+    Let(P<Pat>, P<Expr>, Span),
     /// An `if` block, with an optional `else` block.
     ///
     /// `if expr { block } else { expr }`
@@ -1935,6 +1973,7 @@ bitflags::bitflags! {
         const NORETURN = 1 << 4;
         const NOSTACK = 1 << 5;
         const ATT_SYNTAX = 1 << 6;
+        const RAW = 1 << 7;
     }
 }
 
@@ -2018,7 +2057,9 @@ pub enum InlineAsmOperand {
 #[derive(Clone, Encodable, Decodable, Debug)]
 pub struct InlineAsm {
     pub template: Vec<InlineAsmTemplatePiece>,
+    pub template_strs: Box<[(Symbol, Option<Symbol>, Span)]>,
     pub operands: Vec<(InlineAsmOperand, Span)>,
+    pub clobber_abi: Option<(Symbol, Span)>,
     pub options: InlineAsmOptions,
     pub line_spans: Vec<Span>,
 }
@@ -2293,7 +2334,7 @@ pub struct EnumDef {
 #[derive(Clone, Encodable, Decodable, Debug)]
 pub struct Variant {
     /// Attributes of the variant.
-    pub attrs: Vec<Attribute>,
+    pub attrs: AttrVec,
     /// Id of the variant (not the constructor, see `VariantData::ctor_id()`).
     pub id: NodeId,
     /// Span
@@ -2474,7 +2515,7 @@ impl VisibilityKind {
 /// E.g., `bar: usize` as in `struct Foo { bar: usize }`.
 #[derive(Clone, Encodable, Decodable, Debug)]
 pub struct FieldDef {
-    pub attrs: Vec<Attribute>,
+    pub attrs: AttrVec,
     pub id: NodeId,
     pub span: Span,
     pub vis: Visibility,

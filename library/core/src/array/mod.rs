@@ -14,6 +14,7 @@ use crate::mem::{self, MaybeUninit};
 use crate::ops::{Index, IndexMut};
 use crate::slice::{Iter, IterMut};
 
+mod equality;
 mod iter;
 
 #[stable(feature = "array_value_iter", since = "1.51.0")]
@@ -139,6 +140,18 @@ impl<'a, T, const N: usize> TryFrom<&'a mut [T]> for &'a mut [T; N] {
     }
 }
 
+/// The hash of an array is the same as that of the corresponding slice,
+/// as required by the `Borrow` implementation.
+///
+/// ```
+/// #![feature(build_hasher_simple_hash_one)]
+/// use std::hash::BuildHasher;
+///
+/// let b = std::collections::hash_map::RandomState::new();
+/// let a: [u8; 3] = [0xa8, 0x3c, 0x09];
+/// let s: &[u8] = &[0xa8, 0x3c, 0x09];
+/// assert_eq!(b.hash_one(a), b.hash_one(s));
+/// ```
 #[stable(feature = "rust1", since = "1.0.0")]
 impl<T: Hash, const N: usize> Hash for [T; N] {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
@@ -219,118 +232,6 @@ where
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<A, B, const N: usize> PartialEq<[B; N]> for [A; N]
-where
-    A: PartialEq<B>,
-{
-    #[inline]
-    fn eq(&self, other: &[B; N]) -> bool {
-        self[..] == other[..]
-    }
-    #[inline]
-    fn ne(&self, other: &[B; N]) -> bool {
-        self[..] != other[..]
-    }
-}
-
-#[stable(feature = "rust1", since = "1.0.0")]
-impl<A, B, const N: usize> PartialEq<[B]> for [A; N]
-where
-    A: PartialEq<B>,
-{
-    #[inline]
-    fn eq(&self, other: &[B]) -> bool {
-        self[..] == other[..]
-    }
-    #[inline]
-    fn ne(&self, other: &[B]) -> bool {
-        self[..] != other[..]
-    }
-}
-
-#[stable(feature = "rust1", since = "1.0.0")]
-impl<A, B, const N: usize> PartialEq<[A; N]> for [B]
-where
-    B: PartialEq<A>,
-{
-    #[inline]
-    fn eq(&self, other: &[A; N]) -> bool {
-        self[..] == other[..]
-    }
-    #[inline]
-    fn ne(&self, other: &[A; N]) -> bool {
-        self[..] != other[..]
-    }
-}
-
-#[stable(feature = "rust1", since = "1.0.0")]
-impl<A, B, const N: usize> PartialEq<&[B]> for [A; N]
-where
-    A: PartialEq<B>,
-{
-    #[inline]
-    fn eq(&self, other: &&[B]) -> bool {
-        self[..] == other[..]
-    }
-    #[inline]
-    fn ne(&self, other: &&[B]) -> bool {
-        self[..] != other[..]
-    }
-}
-
-#[stable(feature = "rust1", since = "1.0.0")]
-impl<A, B, const N: usize> PartialEq<[A; N]> for &[B]
-where
-    B: PartialEq<A>,
-{
-    #[inline]
-    fn eq(&self, other: &[A; N]) -> bool {
-        self[..] == other[..]
-    }
-    #[inline]
-    fn ne(&self, other: &[A; N]) -> bool {
-        self[..] != other[..]
-    }
-}
-
-#[stable(feature = "rust1", since = "1.0.0")]
-impl<A, B, const N: usize> PartialEq<&mut [B]> for [A; N]
-where
-    A: PartialEq<B>,
-{
-    #[inline]
-    fn eq(&self, other: &&mut [B]) -> bool {
-        self[..] == other[..]
-    }
-    #[inline]
-    fn ne(&self, other: &&mut [B]) -> bool {
-        self[..] != other[..]
-    }
-}
-
-#[stable(feature = "rust1", since = "1.0.0")]
-impl<A, B, const N: usize> PartialEq<[A; N]> for &mut [B]
-where
-    B: PartialEq<A>,
-{
-    #[inline]
-    fn eq(&self, other: &[A; N]) -> bool {
-        self[..] == other[..]
-    }
-    #[inline]
-    fn ne(&self, other: &[A; N]) -> bool {
-        self[..] != other[..]
-    }
-}
-
-// NOTE: some less important impls are omitted to reduce code bloat
-// __impl_slice_eq2! { [A; $N], &'b [B; $N] }
-// __impl_slice_eq2! { [A; $N], &'b mut [B; $N] }
-
-#[stable(feature = "rust1", since = "1.0.0")]
-impl<T: Eq, const N: usize> Eq for [T; N] {}
-
-#[stable(feature = "rust1", since = "1.0.0")]
 impl<T: PartialOrd, const N: usize> PartialOrd for [T; N] {
     #[inline]
     fn partial_cmp(&self, other: &[T; N]) -> Option<Ordering> {
@@ -379,7 +280,8 @@ macro_rules! array_impl_default {
     };
     {$n:expr,} => {
         #[stable(since = "1.4.0", feature = "array_default")]
-        impl<T> Default for [T; $n] {
+        #[rustc_const_unstable(feature = "const_default_impls", issue = "87864")]
+        impl<T> const Default for [T; $n] {
             fn default() -> [T; $n] { [] }
         }
     };
@@ -392,10 +294,31 @@ impl<T, const N: usize> [T; N] {
     /// Returns an array of the same size as `self`, with function `f` applied to each element
     /// in order.
     ///
+    /// If you don't necessarily need a new fixed-size array, consider using
+    /// [`Iterator::map`] instead.
+    ///
+    ///
+    /// # Note on performance and stack usage
+    ///
+    /// Unfortunately, usages of this method are currently not always optimized
+    /// as well as they could be. This mainly concerns large arrays, as mapping
+    /// over small arrays seem to be optimized just fine. Also note that in
+    /// debug mode (i.e. without any optimizations), this method can use a lot
+    /// of stack space (a few times the size of the array or more).
+    ///
+    /// Therefore, in performance-critical code, try to avoid using this method
+    /// on large arrays or check the emitted code. Also try to avoid chained
+    /// maps (e.g. `arr.map(...).map(...)`).
+    ///
+    /// In many cases, you can instead use [`Iterator::map`] by calling `.iter()`
+    /// or `.into_iter()` on your array. `[T; N]::map` is only necessary if you
+    /// really need a new array of the same size as the result. Rust's lazy
+    /// iterators tend to get optimized very well.
+    ///
+    ///
     /// # Examples
     ///
     /// ```
-    /// #![feature(array_map)]
     /// let x = [1, 2, 3];
     /// let y = x.map(|v| v + 1);
     /// assert_eq!(y, [2, 3, 4]);
@@ -409,7 +332,7 @@ impl<T, const N: usize> [T; N] {
     /// let y = x.map(|v| v.len());
     /// assert_eq!(y, [6, 9, 3, 3]);
     /// ```
-    #[unstable(feature = "array_map", issue = "75243")]
+    #[stable(feature = "array_map", since = "1.55.0")]
     pub fn map<F, U>(self, f: F) -> [U; N]
     where
         F: FnMut(T) -> U,
@@ -476,7 +399,7 @@ impl<T, const N: usize> [T; N] {
     /// array if its elements are not `Copy`.
     ///
     /// ```
-    /// #![feature(array_methods, array_map)]
+    /// #![feature(array_methods)]
     ///
     /// let strings = ["Ferris".to_string(), "♥".to_string(), "Rust".to_string()];
     /// let is_ascii = strings.each_ref().map(|s| s.is_ascii());
@@ -536,11 +459,8 @@ where
     debug_assert!(N <= iter.size_hint().1.unwrap_or(usize::MAX));
     debug_assert!(N <= iter.size_hint().0);
 
-    match collect_into_array(iter) {
-        Some(array) => array,
-        // SAFETY: covered by the function contract.
-        None => unsafe { crate::hint::unreachable_unchecked() },
-    }
+    // SAFETY: covered by the function contract.
+    unsafe { collect_into_array(iter).unwrap_unchecked() }
 }
 
 /// Pulls `N` items from `iter` and returns them as an array. If the iterator

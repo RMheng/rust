@@ -94,7 +94,7 @@
 //!
 //! * [`OsStr`] represents a borrowed reference to a string in a
 //! format that can be passed to the operating system. It can be
-//! converted into an UTF-8 Rust string slice in a similar way to
+//! converted into a UTF-8 Rust string slice in a similar way to
 //! [`OsString`].
 //!
 //! # Conversions
@@ -124,8 +124,8 @@
 //! method is an [`OsString`] which can be round-tripped to a Windows
 //! string losslessly.
 //!
-//! [Unicode scalar value]: http://www.unicode.org/glossary/#unicode_scalar_value
-//! [Unicode code point]: http://www.unicode.org/glossary/#code_point
+//! [Unicode scalar value]: https://www.unicode.org/glossary/#unicode_scalar_value
+//! [Unicode code point]: https://www.unicode.org/glossary/#code_point
 //! [`env::set_var()`]: crate::env::set_var
 //! [`env::var_os()`]: crate::env::var_os
 //! [unix.OsStringExt]: crate::os::unix::ffi::OsStringExt

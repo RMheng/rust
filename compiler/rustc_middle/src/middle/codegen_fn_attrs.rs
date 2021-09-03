@@ -38,6 +38,9 @@ pub struct CodegenFnAttrs {
     /// be generated against a specific instruction set. Only usable on architectures which allow
     /// switching between multiple instruction sets.
     pub instruction_set: Option<InstructionSetAttr>,
+    /// The `#[repr(align(...))]` attribute. Indicates the value of which the function should be
+    /// aligned to.
+    pub alignment: Option<u32>,
 }
 
 bitflags! {
@@ -49,13 +52,9 @@ bitflags! {
         /// `#[rustc_allocator]`: a hint to LLVM that the pointer returned from this
         /// function is never null.
         const ALLOCATOR                 = 1 << 1;
-        /// `#[unwind]`: an indicator that this function may unwind despite what
-        /// its ABI signature may otherwise imply.
-        const UNWIND                    = 1 << 2;
-        /// `#[rust_allocator_nounwind]`, an indicator that an imported FFI
-        /// function will never unwind. Probably obsolete by recent changes with
-        /// #[unwind], but hasn't been removed/migrated yet
-        const RUSTC_ALLOCATOR_NOUNWIND  = 1 << 3;
+        /// An indicator that function will never unwind. Will become obsolete
+        /// once C-unwind is fully stabilized.
+        const NEVER_UNWIND              = 1 << 3;
         /// `#[naked]`: an indicator to LLVM that no function prologue/epilogue
         /// should be generated.
         const NAKED                     = 1 << 4;
@@ -107,6 +106,7 @@ impl CodegenFnAttrs {
             link_section: None,
             no_sanitize: SanitizerSet::empty(),
             instruction_set: None,
+            alignment: None,
         }
     }
 

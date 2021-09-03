@@ -11,7 +11,7 @@ use crate::check::{
 use rustc_ast as ast;
 use rustc_errors::{Applicability, DiagnosticBuilder, DiagnosticId};
 use rustc_hir as hir;
-use rustc_hir::def::{DefKind, Res};
+use rustc_hir::def::{CtorOf, DefKind, Res};
 use rustc_hir::def_id::DefId;
 use rustc_hir::{ExprKind, Node, QPath};
 use rustc_middle::ty::adjustment::AllowTwoPhase;
@@ -29,6 +29,7 @@ use std::slice;
 impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
     pub(in super::super) fn check_casts(&self) {
         let mut deferred_cast_checks = self.deferred_cast_checks.borrow_mut();
+        debug!("FnCtxt::check_casts: {} deferred checks", deferred_cast_checks.len());
         for cast in deferred_cast_checks.drain(..) {
             cast.check(self);
         }
@@ -120,8 +121,22 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                                  error_code: &str,
                                  c_variadic: bool,
                                  sugg_unit: bool| {
-            let (span, start_span, args) = match &expr.kind {
-                hir::ExprKind::Call(hir::Expr { span, .. }, args) => (*span, *span, &args[..]),
+            let (span, start_span, args, ctor_of) = match &expr.kind {
+                hir::ExprKind::Call(
+                    hir::Expr {
+                        span,
+                        kind:
+                            hir::ExprKind::Path(hir::QPath::Resolved(
+                                _,
+                                hir::Path { res: Res::Def(DefKind::Ctor(of, _), _), .. },
+                            )),
+                        ..
+                    },
+                    args,
+                ) => (*span, *span, &args[..], Some(of)),
+                hir::ExprKind::Call(hir::Expr { span, .. }, args) => {
+                    (*span, *span, &args[..], None)
+                }
                 hir::ExprKind::MethodCall(path_segment, span, args, _) => (
                     *span,
                     // `sp` doesn't point at the whole `foo.bar()`, only at `bar`.
@@ -137,6 +152,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                         })
                         .unwrap_or(*span),
                     &args[1..], // Skip the receiver.
+                    None,       // methods are never ctors
                 ),
                 k => span_bug!(sp, "checking argument types on a non-call: `{:?}`", k),
             };
@@ -157,7 +173,12 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             let mut err = tcx.sess.struct_span_err_with_code(
                 span,
                 &format!(
-                    "this function takes {}{} but {} {} supplied",
+                    "this {} takes {}{} but {} {} supplied",
+                    match ctor_of {
+                        Some(CtorOf::Struct) => "struct",
+                        Some(CtorOf::Variant) => "enum variant",
+                        None => "function",
+                    },
                     if c_variadic { "at least " } else { "" },
                     potentially_plural_count(expected_count, "argument"),
                     potentially_plural_count(arg_count, "argument"),
@@ -291,7 +312,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         // that are not closures, then we type-check the closures. This is so
         // that we have more information about the types of arguments when we
         // type-check the functions. This isn't really the right way to do this.
-        for &check_closures in &[false, true] {
+        for check_closures in [false, true] {
             debug!("check_closures={}", check_closures);
 
             // More awful hacks: before we check argument types, try to do
@@ -903,7 +924,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 continue;
             }
 
-            if let ty::PredicateKind::Trait(predicate, _) =
+            if let ty::PredicateKind::Trait(predicate) =
                 error.obligation.predicate.kind().skip_binder()
             {
                 // Collect the argument position for all arguments that could have caused this
@@ -916,7 +937,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                         let ty = self.resolve_vars_if_possible(ty);
                         // We walk the argument type because the argument's type could have
                         // been `Option<T>`, but the `FulfillmentError` references `T`.
-                        if ty.walk().any(|arg| arg == predicate.self_ty().into()) {
+                        if ty.walk(self.tcx).any(|arg| arg == predicate.self_ty().into()) {
                             Some(i)
                         } else {
                             None
@@ -954,7 +975,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             if let hir::ExprKind::Path(qpath) = &path.kind {
                 if let hir::QPath::Resolved(_, path) = &qpath {
                     for error in errors {
-                        if let ty::PredicateKind::Trait(predicate, _) =
+                        if let ty::PredicateKind::Trait(predicate) =
                             error.obligation.predicate.kind().skip_binder()
                         {
                             // If any of the type arguments in this path segment caused the

@@ -1,11 +1,11 @@
 use rustc_data_structures::stable_hasher::{HashStable, StableHasher, ToStableHashKey};
 
 use crate::hir::{
-    BodyId, Expr, ForeignItem, ForeignItemId, ImplItem, ImplItemId, Item, ItemId, MacroDef, Mod,
-    TraitItem, TraitItemId, Ty, VisibilityKind,
+    BodyId, Expr, ForeignItem, ForeignItemId, ImplItem, ImplItemId, Item, ItemId, Mod, TraitItem,
+    TraitItemId, Ty, VisibilityKind,
 };
 use crate::hir_id::{HirId, ItemLocalId};
-use rustc_span::def_id::{DefPathHash, LocalDefId};
+use rustc_span::def_id::DefPathHash;
 
 /// Requirements for a `StableHashingContext` to be used in this crate.
 /// This is a hack to allow using the `HashStable_Generic` derive macro
@@ -21,7 +21,6 @@ pub trait HashStableContext:
     fn hash_hir_ty(&mut self, _: &Ty<'_>, hasher: &mut StableHasher);
     fn hash_hir_visibility_kind(&mut self, _: &VisibilityKind<'_>, hasher: &mut StableHasher);
     fn hash_hir_item_like<F: FnOnce(&mut Self)>(&mut self, f: F);
-    fn local_def_path_hash(&self, def_id: LocalDefId) -> DefPathHash;
 }
 
 impl<HirCtx: crate::HashStableContext> ToStableHashKey<HirCtx> for HirId {
@@ -29,7 +28,7 @@ impl<HirCtx: crate::HashStableContext> ToStableHashKey<HirCtx> for HirId {
 
     #[inline]
     fn to_stable_hash_key(&self, hcx: &HirCtx) -> (DefPathHash, ItemLocalId) {
-        let def_path_hash = hcx.local_def_path_hash(self.owner);
+        let def_path_hash = self.owner.to_stable_hash_key(hcx);
         (def_path_hash, self.local_id)
     }
 }
@@ -39,7 +38,7 @@ impl<HirCtx: crate::HashStableContext> ToStableHashKey<HirCtx> for ItemId {
 
     #[inline]
     fn to_stable_hash_key(&self, hcx: &HirCtx) -> DefPathHash {
-        hcx.local_def_path_hash(self.def_id)
+        self.def_id.to_stable_hash_key(hcx)
     }
 }
 
@@ -48,7 +47,7 @@ impl<HirCtx: crate::HashStableContext> ToStableHashKey<HirCtx> for TraitItemId {
 
     #[inline]
     fn to_stable_hash_key(&self, hcx: &HirCtx) -> DefPathHash {
-        hcx.local_def_path_hash(self.def_id)
+        self.def_id.to_stable_hash_key(hcx)
     }
 }
 
@@ -57,7 +56,7 @@ impl<HirCtx: crate::HashStableContext> ToStableHashKey<HirCtx> for ImplItemId {
 
     #[inline]
     fn to_stable_hash_key(&self, hcx: &HirCtx) -> DefPathHash {
-        hcx.local_def_path_hash(self.def_id)
+        self.def_id.to_stable_hash_key(hcx)
     }
 }
 
@@ -66,7 +65,7 @@ impl<HirCtx: crate::HashStableContext> ToStableHashKey<HirCtx> for ForeignItemId
 
     #[inline]
     fn to_stable_hash_key(&self, hcx: &HirCtx) -> DefPathHash {
-        hcx.local_def_path_hash(self.def_id)
+        self.def_id.to_stable_hash_key(hcx)
     }
 }
 
@@ -186,19 +185,6 @@ impl<HirCtx: crate::HashStableContext> HashStable<HirCtx> for Item<'_> {
         hcx.hash_hir_item_like(|hcx| {
             ident.name.hash_stable(hcx, hasher);
             kind.hash_stable(hcx, hasher);
-            vis.hash_stable(hcx, hasher);
-            span.hash_stable(hcx, hasher);
-        });
-    }
-}
-
-impl<HirCtx: crate::HashStableContext> HashStable<HirCtx> for MacroDef<'_> {
-    fn hash_stable(&self, hcx: &mut HirCtx, hasher: &mut StableHasher) {
-        let MacroDef { ident, def_id: _, ref ast, ref vis, span } = *self;
-
-        hcx.hash_hir_item_like(|hcx| {
-            ident.name.hash_stable(hcx, hasher);
-            ast.hash_stable(hcx, hasher);
             vis.hash_stable(hcx, hasher);
             span.hash_stable(hcx, hasher);
         });

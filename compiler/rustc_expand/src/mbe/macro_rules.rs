@@ -11,14 +11,16 @@ use crate::mbe::transcribe::transcribe;
 use rustc_ast as ast;
 use rustc_ast::token::{self, NonterminalKind, NtTT, Token, TokenKind::*};
 use rustc_ast::tokenstream::{DelimSpan, TokenStream};
-use rustc_ast::NodeId;
+use rustc_ast::{NodeId, DUMMY_NODE_ID};
 use rustc_ast_pretty::pprust;
 use rustc_attr::{self as attr, TransparencyError};
 use rustc_data_structures::fx::FxHashMap;
 use rustc_data_structures::sync::Lrc;
 use rustc_errors::{Applicability, DiagnosticBuilder};
 use rustc_feature::Features;
-use rustc_lint_defs::builtin::{OR_PATTERNS_BACK_COMPAT, SEMICOLON_IN_EXPRESSIONS_FROM_MACROS};
+use rustc_lint_defs::builtin::{
+    RUST_2021_INCOMPATIBLE_OR_PATTERNS, SEMICOLON_IN_EXPRESSIONS_FROM_MACROS,
+};
 use rustc_lint_defs::BuiltinLintDiagnostics;
 use rustc_parse::parser::Parser;
 use rustc_session::parse::ParseSess;
@@ -41,7 +43,10 @@ crate struct ParserAnyMacro<'a> {
     /// The ident of the macro we're parsing
     macro_ident: Ident,
     lint_node_id: NodeId,
+    is_trailing_mac: bool,
     arm_span: Span,
+    /// Whether or not this macro is defined in the current crate
+    is_local: bool,
 }
 
 crate fn annotate_err_with_kind(
@@ -114,8 +119,15 @@ fn emit_frag_parse_err(
 
 impl<'a> ParserAnyMacro<'a> {
     crate fn make(mut self: Box<ParserAnyMacro<'a>>, kind: AstFragmentKind) -> AstFragment {
-        let ParserAnyMacro { site_span, macro_ident, ref mut parser, lint_node_id, arm_span } =
-            *self;
+        let ParserAnyMacro {
+            site_span,
+            macro_ident,
+            ref mut parser,
+            lint_node_id,
+            arm_span,
+            is_trailing_mac,
+            is_local,
+        } = *self;
         let snapshot = &mut parser.clone();
         let fragment = match parse_ast_fragment(parser, kind) {
             Ok(f) => f,
@@ -129,12 +141,15 @@ impl<'a> ParserAnyMacro<'a> {
         // `macro_rules! m { () => { panic!(); } }` isn't parsed by `.parse_expr()`,
         // but `m!()` is allowed in expression positions (cf. issue #34706).
         if kind == AstFragmentKind::Expr && parser.token == token::Semi {
-            parser.sess.buffer_lint(
-                SEMICOLON_IN_EXPRESSIONS_FROM_MACROS,
-                parser.token.span,
-                lint_node_id,
-                "trailing semicolon in macro used in expression position",
-            );
+            if is_local {
+                parser.sess.buffer_lint_with_diagnostic(
+                    SEMICOLON_IN_EXPRESSIONS_FROM_MACROS,
+                    parser.token.span,
+                    lint_node_id,
+                    "trailing semicolon in macro used in expression position",
+                    BuiltinLintDiagnostics::TrailingMacro(is_trailing_mac, macro_ident),
+                );
+            }
             parser.bump();
         }
 
@@ -152,6 +167,7 @@ struct MacroRulesMacroExpander {
     lhses: Vec<mbe::TokenTree>,
     rhses: Vec<mbe::TokenTree>,
     valid: bool,
+    is_local: bool,
 }
 
 impl TTMacroExpander for MacroRulesMacroExpander {
@@ -173,6 +189,7 @@ impl TTMacroExpander for MacroRulesMacroExpander {
             input,
             &self.lhses,
             &self.rhses,
+            self.is_local,
         )
     }
 }
@@ -200,6 +217,7 @@ fn generic_extension<'cx>(
     arg: TokenStream,
     lhses: &[mbe::TokenTree],
     rhses: &[mbe::TokenTree],
+    is_local: bool,
 ) -> Box<dyn MacResult + 'cx> {
     let sess = &cx.sess.parse_sess;
 
@@ -287,7 +305,6 @@ fn generic_extension<'cx>(
 
                 let mut p = Parser::new(sess, tts, false, None);
                 p.last_type_ascription = cx.current_expansion.prior_type_ascription;
-                let lint_node_id = cx.resolver.lint_node_id(cx.current_expansion.id);
 
                 // Let the context choose how to interpret the result.
                 // Weird, but useful for X-macros.
@@ -299,8 +316,10 @@ fn generic_extension<'cx>(
                     // macro leaves unparsed tokens.
                     site_span: sp,
                     macro_ident: name,
-                    lint_node_id,
+                    lint_node_id: cx.current_expansion.lint_node_id,
+                    is_trailing_mac: cx.current_expansion.is_trailing_mac,
                     arm_span,
+                    is_local,
                 });
             }
             Failure(token, msg) => match best_failure {
@@ -471,7 +490,7 @@ pub fn compile_declarative_macro(
                         )
                         .pop()
                         .unwrap();
-                        valid &= check_lhs_nt_follows(&sess.parse_sess, features, &def.attrs, &tt);
+                        valid &= check_lhs_nt_follows(&sess.parse_sess, features, &def, &tt);
                         return tt;
                     }
                 }
@@ -516,7 +535,7 @@ pub fn compile_declarative_macro(
 
     valid &= macro_check::check_meta_variables(&sess.parse_sess, def.id, def.span, &lhses, &rhses);
 
-    let (transparency, transparency_error) = attr::find_transparency(sess, &def.attrs, macro_rules);
+    let (transparency, transparency_error) = attr::find_transparency(&def.attrs, macro_rules);
     match transparency_error {
         Some(TransparencyError::UnknownTransparency(value, span)) => {
             diag.span_err(span, &format!("unknown macro transparency: `{}`", value))
@@ -534,19 +553,22 @@ pub fn compile_declarative_macro(
         lhses,
         rhses,
         valid,
+        // Macros defined in the current crate have a real node id,
+        // whereas macros from an external crate have a dummy id.
+        is_local: def.id != DUMMY_NODE_ID,
     }))
 }
 
 fn check_lhs_nt_follows(
     sess: &ParseSess,
     features: &Features,
-    attrs: &[ast::Attribute],
+    def: &ast::Item,
     lhs: &mbe::TokenTree,
 ) -> bool {
     // lhs is going to be like TokenTree::Delimited(...), where the
     // entire lhs is those tts. Or, it can be a "bare sequence", not wrapped in parens.
     if let mbe::TokenTree::Delimited(_, ref tts) = *lhs {
-        check_matcher(sess, features, attrs, &tts.tts)
+        check_matcher(sess, features, def, &tts.tts)
     } else {
         let msg = "invalid macro matcher; matchers must be contained in balanced delimiters";
         sess.span_diagnostic.span_err(lhs.span(), msg);
@@ -604,13 +626,13 @@ fn check_rhs(sess: &ParseSess, rhs: &mbe::TokenTree) -> bool {
 fn check_matcher(
     sess: &ParseSess,
     features: &Features,
-    attrs: &[ast::Attribute],
+    def: &ast::Item,
     matcher: &[mbe::TokenTree],
 ) -> bool {
     let first_sets = FirstSets::new(matcher);
     let empty_suffix = TokenSet::empty();
     let err = sess.span_diagnostic.err_count();
-    check_matcher_core(sess, features, attrs, &first_sets, matcher, &empty_suffix);
+    check_matcher_core(sess, features, def, &first_sets, matcher, &empty_suffix);
     err == sess.span_diagnostic.err_count()
 }
 
@@ -857,7 +879,7 @@ impl TokenSet {
 fn check_matcher_core(
     sess: &ParseSess,
     features: &Features,
-    attrs: &[ast::Attribute],
+    def: &ast::Item,
     first_sets: &FirstSets,
     matcher: &[mbe::TokenTree],
     follow: &TokenSet,
@@ -903,7 +925,7 @@ fn check_matcher_core(
             }
             TokenTree::Delimited(span, ref d) => {
                 let my_suffix = TokenSet::singleton(d.close_tt(span));
-                check_matcher_core(sess, features, attrs, first_sets, &d.tts, &my_suffix);
+                check_matcher_core(sess, features, def, first_sets, &d.tts, &my_suffix);
                 // don't track non NT tokens
                 last.replace_with_irrelevant();
 
@@ -936,7 +958,7 @@ fn check_matcher_core(
                 // `my_suffix` is some TokenSet that we can use
                 // for checking the interior of `seq_rep`.
                 let next =
-                    check_matcher_core(sess, features, attrs, first_sets, &seq_rep.tts, my_suffix);
+                    check_matcher_core(sess, features, def, first_sets, &seq_rep.tts, my_suffix);
                 if next.maybe_empty {
                     last.add_all(&next);
                 } else {
@@ -956,29 +978,31 @@ fn check_matcher_core(
         for token in &last.tokens {
             if let TokenTree::MetaVarDecl(span, name, Some(kind)) = *token {
                 for next_token in &suffix_first.tokens {
-                    // Check if the old pat is used and the next token is `|`.
-                    if let NonterminalKind::PatParam { inferred: true } = kind {
-                        if let TokenTree::Token(token) = next_token {
-                            if let BinOp(token) = token.kind {
-                                if let token::BinOpToken::Or = token {
-                                    // It is suggestion to use pat_param, for example: $x:pat -> $x:pat_param.
-                                    let suggestion = quoted_tt_to_string(&TokenTree::MetaVarDecl(
-                                        span,
-                                        name,
-                                        Some(NonterminalKind::PatParam { inferred: false }),
-                                    ));
-                                    sess.buffer_lint_with_diagnostic(
-                                        &OR_PATTERNS_BACK_COMPAT,
-                                        span,
-                                        ast::CRATE_NODE_ID,
-                                        &*format!("the meaning of the `pat` fragment specifier is changing in Rust 2021, which may affect this macro",),
-                                        BuiltinLintDiagnostics::OrPatternsBackCompat(
-                                            span, suggestion,
-                                        ),
-                                    );
-                                }
-                            }
-                        }
+                    // Check if the old pat is used and the next token is `|`
+                    // to warn about incompatibility with Rust 2021.
+                    // We only emit this lint if we're parsing the original
+                    // definition of this macro_rules, not while (re)parsing
+                    // the macro when compiling another crate that is using the
+                    // macro. (See #86567.)
+                    // Macros defined in the current crate have a real node id,
+                    // whereas macros from an external crate have a dummy id.
+                    if def.id != DUMMY_NODE_ID
+                        && matches!(kind, NonterminalKind::PatParam { inferred: true })
+                        && matches!(next_token, TokenTree::Token(token) if token.kind == BinOp(token::BinOpToken::Or))
+                    {
+                        // It is suggestion to use pat_param, for example: $x:pat -> $x:pat_param.
+                        let suggestion = quoted_tt_to_string(&TokenTree::MetaVarDecl(
+                            span,
+                            name,
+                            Some(NonterminalKind::PatParam { inferred: false }),
+                        ));
+                        sess.buffer_lint_with_diagnostic(
+                            &RUST_2021_INCOMPATIBLE_OR_PATTERNS,
+                            span,
+                            ast::CRATE_NODE_ID,
+                            "the meaning of the `pat` fragment specifier is changing in Rust 2021, which may affect this macro",
+                            BuiltinLintDiagnostics::OrPatternsBackCompat(span, suggestion),
+                        );
                     }
                     match is_in_follow(next_token, kind) {
                         IsInFollow::Yes => {}
@@ -1197,7 +1221,7 @@ fn is_in_follow(tok: &mbe::TokenTree, kind: NonterminalKind) -> IsInFollow {
 
 fn quoted_tt_to_string(tt: &mbe::TokenTree) -> String {
     match *tt {
-        mbe::TokenTree::Token(ref token) => pprust::token_to_string(&token),
+        mbe::TokenTree::Token(ref token) => pprust::token_to_string(&token).into(),
         mbe::TokenTree::MetaVar(_, name) => format!("${}", name),
         mbe::TokenTree::MetaVarDecl(_, name, Some(kind)) => format!("${}:{}", name, kind),
         mbe::TokenTree::MetaVarDecl(_, name, None) => format!("${}:", name),

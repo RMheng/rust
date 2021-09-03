@@ -9,6 +9,8 @@ use crate::path::Path;
 use crate::sys;
 use crate::sys_common::{AsInner, AsInnerMut, FromInner};
 // Used for `File::read` on intra-doc links
+use crate::ffi::OsStr;
+use crate::sealed::Sealed;
 #[allow(unused_imports)]
 use io::{Read, Write};
 
@@ -839,6 +841,43 @@ impl DirEntryExt for fs::DirEntry {
     }
 }
 
+/// Sealed Unix-specific extension methods for [`fs::DirEntry`].
+#[unstable(feature = "dir_entry_ext2", issue = "85573")]
+pub trait DirEntryExt2: Sealed {
+    /// Returns a reference to the underlying `OsStr` of this entry's filename.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// #![feature(dir_entry_ext2)]
+    /// use std::os::unix::fs::DirEntryExt2;
+    /// use std::{fs, io};
+    ///
+    /// fn main() -> io::Result<()> {
+    ///     let mut entries = fs::read_dir(".")?.collect::<Result<Vec<_>, io::Error>>()?;
+    ///     entries.sort_unstable_by(|a, b| a.file_name_ref().cmp(b.file_name_ref()));
+    ///
+    ///     for p in entries {
+    ///         println!("{:?}", p);
+    ///     }
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    fn file_name_ref(&self) -> &OsStr;
+}
+
+/// Allows extension traits within `std`.
+#[unstable(feature = "sealed", issue = "none")]
+impl Sealed for fs::DirEntry {}
+
+#[unstable(feature = "dir_entry_ext2", issue = "85573")]
+impl DirEntryExt2 for fs::DirEntry {
+    fn file_name_ref(&self) -> &OsStr {
+        self.as_inner().file_name_os_str()
+    }
+}
+
 /// Creates a new symbolic link on the filesystem.
 ///
 /// The `link` path will be a symbolic link pointing to the `original` path.
@@ -895,7 +934,6 @@ impl DirBuilderExt for fs::DirBuilder {
 /// # Examples
 ///
 /// ```no_run
-/// #![feature(unix_chroot)]
 /// use std::os::unix::fs;
 ///
 /// fn main() -> std::io::Result<()> {
@@ -905,7 +943,7 @@ impl DirBuilderExt for fs::DirBuilder {
 ///     Ok(())
 /// }
 /// ```
-#[unstable(feature = "unix_chroot", issue = "84715")]
+#[stable(feature = "unix_chroot", since = "1.56.0")]
 #[cfg(not(any(target_os = "fuchsia", target_os = "vxworks")))]
 pub fn chroot<P: AsRef<Path>>(dir: P) -> io::Result<()> {
     sys::fs::chroot(dir.as_ref())

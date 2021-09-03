@@ -42,7 +42,7 @@
 //!   of the `try` intrinsic.
 //!
 //! [win64]: https://docs.microsoft.com/en-us/cpp/build/exception-handling-x64
-//! [llvm]: http://llvm.org/docs/ExceptionHandling.html#background-on-windows-exceptions
+//! [llvm]: https://llvm.org/docs/ExceptionHandling.html#background-on-windows-exceptions
 
 #![allow(nonstandard_style)]
 
@@ -100,7 +100,7 @@ struct Exception {
 // In any case, these structures are all constructed in a similar manner, and
 // it's just somewhat verbose for us.
 //
-// [1]: http://www.geoffchappell.com/studies/msvc/language/predefined/
+// [1]: https://www.geoffchappell.com/studies/msvc/language/predefined/
 
 #[cfg(target_arch = "x86")]
 #[macro_use]
@@ -233,15 +233,14 @@ static mut TYPE_DESCRIPTOR: _TypeDescriptor = _TypeDescriptor {
 // support capturing exceptions with std::exception_ptr, which we can't support
 // because Box<dyn Any> isn't clonable.
 macro_rules! define_cleanup {
-    ($abi:tt) => {
+    ($abi:tt $abi2:tt) => {
         unsafe extern $abi fn exception_cleanup(e: *mut Exception) {
             if let Exception { data: Some(b) } = e.read() {
                 drop(b);
                 super::__rust_drop_panic();
             }
         }
-        #[unwind(allowed)]
-        unsafe extern $abi fn exception_copy(_dest: *mut Exception,
+        unsafe extern $abi2 fn exception_copy(_dest: *mut Exception,
                                              _src: *mut Exception)
                                              -> *mut Exception {
             panic!("Rust panics cannot be copied");
@@ -250,9 +249,9 @@ macro_rules! define_cleanup {
 }
 cfg_if::cfg_if! {
    if #[cfg(target_arch = "x86")] {
-       define_cleanup!("thiscall");
+       define_cleanup!("thiscall" "thiscall-unwind");
    } else {
-       define_cleanup!("C");
+       define_cleanup!("C" "C-unwind");
    }
 }
 
@@ -307,8 +306,7 @@ pub unsafe fn panic(data: Box<dyn Any + Send>) -> u32 {
         ptr!(exception_copy) as u32,
     );
 
-    extern "system" {
-        #[unwind(allowed)]
+    extern "system-unwind" {
         fn _CxxThrowException(pExceptionObject: *mut c_void, pThrowInfo: *mut u8) -> !;
     }
 

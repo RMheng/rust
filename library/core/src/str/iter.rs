@@ -2,9 +2,9 @@
 
 use crate::char;
 use crate::fmt::{self, Write};
-use crate::iter::TrustedRandomAccess;
 use crate::iter::{Chain, FlatMap, Flatten};
 use crate::iter::{Copied, Filter, FusedIterator, Map, TrustedLen};
+use crate::iter::{TrustedRandomAccess, TrustedRandomAccessNoCoerce};
 use crate::ops::Try;
 use crate::option;
 use crate::slice::{self, Split as SliceSplit};
@@ -295,6 +295,7 @@ impl Iterator for Bytes<'_> {
     }
 
     #[inline]
+    #[doc(hidden)]
     unsafe fn __iterator_get_unchecked(&mut self, idx: usize) -> u8 {
         // SAFETY: the caller must uphold the safety contract
         // for `Iterator::__iterator_get_unchecked`.
@@ -344,7 +345,11 @@ unsafe impl TrustedLen for Bytes<'_> {}
 
 #[doc(hidden)]
 #[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl TrustedRandomAccess for Bytes<'_> {
+unsafe impl TrustedRandomAccess for Bytes<'_> {}
+
+#[doc(hidden)]
+#[unstable(feature = "trusted_random_access", issue = "none")]
+unsafe impl TrustedRandomAccessNoCoerce for Bytes<'_> {
     const MAY_HAVE_SIDE_EFFECT: bool = false;
 }
 

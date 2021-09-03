@@ -4,7 +4,6 @@
 use std::path::PathBuf;
 
 use rustc_ast::{InlineAsmOptions, InlineAsmTemplatePiece};
-use rustc_codegen_ssa::back::linker::LinkerInfo;
 use rustc_codegen_ssa::{CodegenResults, CompiledModule, CrateInfo, ModuleKind};
 use rustc_data_structures::stable_hasher::{HashStable, StableHasher};
 use rustc_middle::dep_graph::{WorkProduct, WorkProductId};
@@ -69,14 +68,13 @@ fn reuse_workproduct_for_cgu(
     cgu: &CodegenUnit<'_>,
     work_products: &mut FxHashMap<WorkProductId, WorkProduct>,
 ) -> CompiledModule {
-    let incr_comp_session_dir = tcx.sess.incr_comp_session_dir();
     let mut object = None;
     let work_product = cgu.work_product(tcx);
     if let Some(saved_file) = &work_product.saved_file {
         let obj_out =
             tcx.output_filenames(()).temp_path(OutputType::Object, Some(&cgu.name().as_str()));
         object = Some(obj_out.clone());
-        let source_file = rustc_incremental::in_incr_comp_dir(&incr_comp_session_dir, &saved_file);
+        let source_file = rustc_incremental::in_incr_comp_dir_sess(&tcx.sess, &saved_file);
         if let Err(err) = rustc_fs_util::link_or_copy(&source_file, &obj_out) {
             tcx.sess.err(&format!(
                 "unable to copy {} to {}: {}",
@@ -290,14 +288,16 @@ pub(crate) fn run_aot(
         None
     };
 
+    // FIXME handle `-Ctarget-cpu=native`
+    let target_cpu =
+        tcx.sess.opts.cg.target_cpu.as_ref().unwrap_or(&tcx.sess.target.cpu).to_owned();
     Box::new((
         CodegenResults {
             modules,
             allocator_module,
             metadata_module,
             metadata,
-            linker_info: LinkerInfo::new(tcx, crate::target_triple(tcx.sess).to_string()),
-            crate_info: CrateInfo::new(tcx),
+            crate_info: CrateInfo::new(tcx, target_cpu),
         },
         work_products,
     ))

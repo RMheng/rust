@@ -1,4 +1,6 @@
-use crate::iter::adapters::{zip::try_get_unchecked, TrustedRandomAccess};
+use crate::iter::adapters::{
+    zip::try_get_unchecked, TrustedRandomAccess, TrustedRandomAccessNoCoerce,
+};
 use crate::iter::{FusedIterator, TrustedLen};
 use crate::ops::Try;
 
@@ -58,9 +60,10 @@ where
         self.it.map(T::clone).fold(init, f)
     }
 
+    #[doc(hidden)]
     unsafe fn __iterator_get_unchecked(&mut self, idx: usize) -> T
     where
-        Self: TrustedRandomAccess,
+        Self: TrustedRandomAccessNoCoerce,
     {
         // SAFETY: the caller must uphold the contract for
         // `Iterator::__iterator_get_unchecked`.
@@ -120,9 +123,13 @@ where
 
 #[doc(hidden)]
 #[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<I> TrustedRandomAccess for Cloned<I>
+unsafe impl<I> TrustedRandomAccess for Cloned<I> where I: TrustedRandomAccess {}
+
+#[doc(hidden)]
+#[unstable(feature = "trusted_random_access", issue = "none")]
+unsafe impl<I> TrustedRandomAccessNoCoerce for Cloned<I>
 where
-    I: TrustedRandomAccess,
+    I: TrustedRandomAccessNoCoerce,
 {
     const MAY_HAVE_SIDE_EFFECT: bool = true;
 }

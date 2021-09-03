@@ -1114,6 +1114,15 @@ impl Json {
         }
     }
 
+    /// If the Json value is an Object, deletes the value associated with the
+    /// provided key from the Object and returns it. Otherwise, returns None.
+    pub fn remove_key(&mut self, key: &str) -> Option<Json> {
+        match *self {
+            Json::Object(ref mut map) => map.remove(key),
+            _ => None,
+        }
+    }
+
     /// Attempts to get a nested Json Object for each key in `keys`.
     /// If any key is found not to exist, `find_path` will return `None`.
     /// Otherwise, it will return the Json value associated with the final key.
@@ -1193,7 +1202,7 @@ impl Json {
         matches!(*self, Json::I64(_) | Json::U64(_) | Json::F64(_))
     }
 
-    /// Returns `true` if the Json value is a `i64`.
+    /// Returns `true` if the Json value is an `i64`.
     pub fn is_i64(&self) -> bool {
         matches!(*self, Json::I64(_))
     }
@@ -1208,7 +1217,7 @@ impl Json {
         matches!(*self, Json::F64(_))
     }
 
-    /// If the Json value is a number, returns or cast it to a `i64`;
+    /// If the Json value is a number, returns or cast it to an `i64`;
     /// returns `None` otherwise.
     pub fn as_i64(&self) -> Option<i64> {
         match *self {

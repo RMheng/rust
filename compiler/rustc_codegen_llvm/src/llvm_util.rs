@@ -3,13 +3,17 @@ use crate::{llvm, llvm_util};
 use libc::c_int;
 use rustc_codegen_ssa::target_features::supported_target_features;
 use rustc_data_structures::fx::FxHashSet;
+use rustc_metadata::dynamic_lib::DynamicLibrary;
 use rustc_middle::bug;
 use rustc_session::config::PrintRequest;
 use rustc_session::Session;
 use rustc_span::symbol::Symbol;
 use rustc_target::spec::{MergeFunctions, PanicStrategy};
 use std::ffi::{CStr, CString};
+use tracing::debug;
 
+use std::mem;
+use std::path::Path;
 use std::ptr;
 use std::slice;
 use std::str;
@@ -85,13 +89,14 @@ unsafe fn configure_llvm(sess: &Session) {
             add("-generate-arange-section", false);
         }
 
-        // FIXME(nagisa): disable the machine outliner by default in LLVM versions 11, where it was
-        // introduced and up.
+        // Disable the machine outliner by default in LLVM versions 11 and LLVM
+        // version 12, where it leads to miscompilation.
         //
-        // This should remain in place until https://reviews.llvm.org/D103167 is fixed. If LLVM
-        // has been upgraded since, consider adjusting the version check below to contain an upper
-        // bound.
-        if llvm_util::get_version() >= (11, 0, 0) {
+        // Ref:
+        // - https://github.com/rust-lang/rust/issues/85351
+        // - https://reviews.llvm.org/D103167
+        let llvm_version = llvm_util::get_version();
+        if llvm_version >= (11, 0, 0) && llvm_version < (13, 0, 0) {
             add("-enable-machine-outliner=never", false);
         }
 
@@ -128,6 +133,16 @@ unsafe fn configure_llvm(sess: &Session) {
     }
 
     llvm::LLVMInitializePasses();
+
+    for plugin in &sess.opts.debugging_opts.llvm_plugins {
+        let path = Path::new(plugin);
+        let res = DynamicLibrary::open(path);
+        match res {
+            Ok(_) => debug!("LLVM plugin loaded succesfully {} ({})", path.display(), plugin),
+            Err(e) => bug!("couldn't load plugin: {}", e),
+        }
+        mem::forget(res);
+    }
 
     rustc_llvm::initialize_available_targets();
 
@@ -351,7 +366,7 @@ pub fn llvm_global_features(sess: &Session) -> Vec<String> {
 
                 features_string
             };
-            features.extend(features_string.split(",").map(String::from));
+            features.extend(features_string.split(',').map(String::from));
         }
         Some(_) | None => {}
     };
@@ -360,7 +375,7 @@ pub fn llvm_global_features(sess: &Session) -> Vec<String> {
         if s.is_empty() {
             return None;
         }
-        let feature = if s.starts_with("+") || s.starts_with("-") {
+        let feature = if s.starts_with('+') || s.starts_with('-') {
             &s[1..]
         } else {
             return Some(s.to_string());

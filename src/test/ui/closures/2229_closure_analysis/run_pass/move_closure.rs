@@ -1,9 +1,9 @@
+// edition:2021
 // run-pass
 
 // Test that move closures compile properly with `capture_disjoint_fields` enabled.
 
-#![feature(capture_disjoint_fields)]
-//~^ WARNING: the feature `capture_disjoint_fields` is incomplete
+#![allow(unused)]
 
 fn simple_ref() {
     let mut s = 10;
@@ -56,28 +56,6 @@ fn no_ref_nested() {
     c();
 }
 
-struct A<'a>(&'a mut String,  &'a mut String);
-// Test that reborrowing works as expected for move closures
-// by attempting a disjoint capture through a reference.
-fn disjoint_via_ref() {
-    let mut x = String::new();
-    let mut y = String::new();
-
-    let mut a = A(&mut x, &mut y);
-    let a = &mut a;
-
-    let mut c1 = move || {
-        a.0.truncate(0);
-    };
-
-    let mut c2 = move || {
-        a.1.truncate(0);
-    };
-
-    c1();
-    c2();
-}
-
 // Test that even if a path is moved into the closure, the closure is not FnOnce
 // if the path is not moved by the closure call.
 fn data_moved_but_not_fn_once() {
@@ -94,12 +72,22 @@ fn data_moved_but_not_fn_once() {
     c();
 }
 
+// Test that move closures can take ownership of Copy type
+fn returned_closure_owns_copy_type_data() -> impl Fn() -> i32 {
+    let x = 10;
+
+    let c = move || x;
+
+    c
+}
+
 fn main() {
     simple_ref();
     struct_contains_ref_to_another_struct();
     no_ref();
     no_ref_nested();
 
-    disjoint_via_ref();
     data_moved_but_not_fn_once();
+
+    returned_closure_owns_copy_type_data();
 }

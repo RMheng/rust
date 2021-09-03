@@ -66,6 +66,7 @@ impl BorrowExplanation {
         err: &mut DiagnosticBuilder<'_>,
         borrow_desc: &str,
         borrow_span: Option<Span>,
+        multiple_borrow_span: Option<(Span, Span)>,
     ) {
         match *self {
             BorrowExplanation::UsedLater(later_use_kind, var_or_use_span, path_span) => {
@@ -192,14 +193,23 @@ impl BorrowExplanation {
 
                         if let Some(info) = &local_decl.is_block_tail {
                             if info.tail_result_is_ignored {
-                                err.span_suggestion_verbose(
-                                    info.span.shrink_to_hi(),
-                                    "consider adding semicolon after the expression so its \
-                                     temporaries are dropped sooner, before the local variables \
-                                     declared by the block are dropped",
-                                    ";".to_string(),
-                                    Applicability::MaybeIncorrect,
-                                );
+                                // #85581: If the first mutable borrow's scope contains
+                                // the second borrow, this suggestion isn't helpful.
+                                if !multiple_borrow_span
+                                    .map(|(old, new)| {
+                                        old.to(info.span.shrink_to_hi()).contains(new)
+                                    })
+                                    .unwrap_or(false)
+                                {
+                                    err.span_suggestion_verbose(
+                                        info.span.shrink_to_hi(),
+                                        "consider adding semicolon after the expression so its \
+                                        temporaries are dropped sooner, before the local variables \
+                                        declared by the block are dropped",
+                                        ";".to_string(),
+                                        Applicability::MaybeIncorrect,
+                                    );
+                                }
                             } else {
                                 err.note(
                                     "the temporary is part of an expression at the end of a \
@@ -596,7 +606,7 @@ impl<'cx, 'tcx> MirBorrowckCtxt<'cx, 'tcx> {
 
     /// Checks if a borrowed value was captured by a trait object. We do this by
     /// looking forward in the MIR from the reserve location and checking if we see
-    /// a unsized cast to a trait object on our data.
+    /// an unsized cast to a trait object on our data.
     fn was_captured_by_trait_object(&self, borrow: &BorrowData<'tcx>) -> bool {
         // Start at the reserve location, find the place that we want to see cast to a trait object.
         let location = borrow.reserve_location;
@@ -656,7 +666,7 @@ impl<'cx, 'tcx> MirBorrowckCtxt<'cx, 'tcx> {
                             }
                             _ => {}
                         },
-                        // If we see a unsized cast, then if it is our data we should check
+                        // If we see an unsized cast, then if it is our data we should check
                         // whether it is being cast to a trait object.
                         Rvalue::Cast(CastKind::Pointer(PointerCast::Unsize), operand, ty) => {
                             match operand {

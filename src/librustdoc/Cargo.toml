@@ -1,5 +1,4 @@
 [package]
-authors = ["The Rust Project Developers"]
 name = "rustdoc"
 version = "0.0.0"
 edition = "2018"
@@ -21,6 +20,7 @@ regex = "1"
 rustdoc-json-types = { path = "../rustdoc-json-types" }
 tracing = "0.1"
 tracing-tree = "0.1.9"
+tera = { version = "1.10.0", default-features = false }
 
 [dependencies.tracing-subscriber]
 version = "0.2.13"

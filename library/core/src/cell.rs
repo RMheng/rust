@@ -488,6 +488,13 @@ impl<T: ?Sized> Cell<T> {
     /// This call borrows `Cell` mutably (at compile-time) which guarantees
     /// that we possess the only reference.
     ///
+    /// However be cautious: this method expects `self` to be mutable, which is
+    /// generally not the case when using a `Cell`. If you require interior
+    /// mutability by reference, consider using `RefCell` which provides
+    /// run-time checked mutable borrows through its [`borrow_mut`] method.
+    ///
+    /// [`borrow_mut`]: RefCell::borrow_mut()
+    ///
     /// # Examples
     ///
     /// ```
@@ -569,6 +576,26 @@ impl<T> Cell<[T]> {
     }
 }
 
+impl<T, const N: usize> Cell<[T; N]> {
+    /// Returns a `&[Cell<T>; N]` from a `&Cell<[T; N]>`
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// #![feature(as_array_of_cells)]
+    /// use std::cell::Cell;
+    ///
+    /// let mut array: [i32; 3] = [1, 2, 3];
+    /// let cell_array: &Cell<[i32; 3]> = Cell::from_mut(&mut array);
+    /// let array_cell: &[Cell<i32>; 3] = cell_array.as_array_of_cells();
+    /// ```
+    #[unstable(feature = "as_array_of_cells", issue = "88248")]
+    pub fn as_array_of_cells(&self) -> &[Cell<T>; N] {
+        // SAFETY: `Cell<T>` has the same memory layout as `T`.
+        unsafe { &*(self as *const Cell<[T; N]> as *const [Cell<T>; N]) }
+    }
+}
+
 /// A mutable memory location with dynamically checked borrow rules
 ///
 /// See the [module-level documentation](self) for more.
@@ -576,9 +603,9 @@ impl<T> Cell<[T]> {
 pub struct RefCell<T: ?Sized> {
     borrow: Cell<BorrowFlag>,
     // Stores the location of the earliest currently active borrow.
-    // This gets updated whenver we go from having zero borrows
+    // This gets updated whenever we go from having zero borrows
     // to having a single borrow. When a borrow occurs, this gets included
-    // in the generated `BorroeError/`BorrowMutError`
+    // in the generated `BorrowError/`BorrowMutError`
     #[cfg(feature = "debug_refcell")]
     borrowed_at: Cell<Option<&'static crate::panic::Location<'static>>>,
     value: UnsafeCell<T>,
@@ -586,8 +613,8 @@ pub struct RefCell<T: ?Sized> {
 
 /// An error returned by [`RefCell::try_borrow`].
 #[stable(feature = "try_borrow", since = "1.13.0")]
+#[non_exhaustive]
 pub struct BorrowError {
-    _private: (),
     #[cfg(feature = "debug_refcell")]
     location: &'static crate::panic::Location<'static>,
 }
@@ -613,8 +640,8 @@ impl Display for BorrowError {
 
 /// An error returned by [`RefCell::try_borrow_mut`].
 #[stable(feature = "try_borrow", since = "1.13.0")]
+#[non_exhaustive]
 pub struct BorrowMutError {
-    _private: (),
     #[cfg(feature = "debug_refcell")]
     location: &'static crate::panic::Location<'static>,
 }
@@ -865,7 +892,6 @@ impl<T: ?Sized> RefCell<T> {
                 Ok(Ref { value: unsafe { &*self.value.get() }, borrow: b })
             }
             None => Err(BorrowError {
-                _private: (),
                 // If a borrow occured, then we must already have an outstanding borrow,
                 // so `borrowed_at` will be `Some`
                 #[cfg(feature = "debug_refcell")]
@@ -951,7 +977,6 @@ impl<T: ?Sized> RefCell<T> {
                 Ok(RefMut { value: unsafe { &mut *self.value.get() }, borrow: b })
             }
             None => Err(BorrowMutError {
-                _private: (),
                 // If a borrow occured, then we must already have an outstanding borrow,
                 // so `borrowed_at` will be `Some`
                 #[cfg(feature = "debug_refcell")]
@@ -1073,7 +1098,6 @@ impl<T: ?Sized> RefCell<T> {
             Ok(unsafe { &*self.value.get() })
         } else {
             Err(BorrowError {
-                _private: (),
                 // If a borrow occured, then we must already have an outstanding borrow,
                 // so `borrowed_at` will be `Some`
                 #[cfg(feature = "debug_refcell")]
@@ -1897,7 +1921,7 @@ impl<T: ?Sized> UnsafeCell<T> {
     }
 
     /// Gets a mutable pointer to the wrapped value.
-    /// The difference to [`get`] is that this function accepts a raw pointer,
+    /// The difference from [`get`] is that this function accepts a raw pointer,
     /// which is useful to avoid the creation of temporary references.
     ///
     /// The result can be cast to a pointer of any kind.
@@ -1913,7 +1937,6 @@ impl<T: ?Sized> UnsafeCell<T> {
     /// calling `get` would require creating a reference to uninitialized data:
     ///
     /// ```
-    /// #![feature(unsafe_cell_raw_get)]
     /// use std::cell::UnsafeCell;
     /// use std::mem::MaybeUninit;
     ///
@@ -1924,7 +1947,7 @@ impl<T: ?Sized> UnsafeCell<T> {
     /// assert_eq!(uc.into_inner(), 5);
     /// ```
     #[inline(always)]
-    #[unstable(feature = "unsafe_cell_raw_get", issue = "66358")]
+    #[stable(feature = "unsafe_cell_raw_get", since = "1.56.0")]
     pub const fn raw_get(this: *const Self) -> *mut T {
         // We can just cast the pointer from `UnsafeCell<T>` to `T` because of
         // #[repr(transparent)]. This exploits libstd's special status, there is

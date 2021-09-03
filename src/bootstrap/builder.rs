@@ -29,6 +29,8 @@ use crate::util::{self, add_dylib_path, add_link_lib_path, exe, libdir};
 use crate::{Build, DocTests, GitRepo, Mode};
 
 pub use crate::Compiler;
+// FIXME: replace with std::lazy after it gets stabilized and reaches beta
+use once_cell::sync::Lazy;
 
 pub struct Builder<'a> {
     pub build: &'a Build,
@@ -161,14 +163,8 @@ impl StepDescription {
     }
 
     fn maybe_run(&self, builder: &Builder<'_>, pathset: &PathSet) {
-        if builder.config.exclude.iter().any(|e| pathset.has(e)) {
-            eprintln!("Skipping {:?} because it is excluded", pathset);
+        if self.is_excluded(builder, pathset) {
             return;
-        } else if !builder.config.exclude.is_empty() {
-            eprintln!(
-                "{:?} not skipped for {:?} -- not in {:?}",
-                pathset, self.name, builder.config.exclude
-            );
         }
 
         // Determine the targets participating in this rule.
@@ -178,6 +174,21 @@ impl StepDescription {
             let run = RunConfig { builder, path: pathset.path(builder), target: *target };
             (self.make_run)(run);
         }
+    }
+
+    fn is_excluded(&self, builder: &Builder<'_>, pathset: &PathSet) -> bool {
+        if builder.config.exclude.iter().any(|e| pathset.has(e)) {
+            eprintln!("Skipping {:?} because it is excluded", pathset);
+            return true;
+        }
+
+        if !builder.config.exclude.is_empty() {
+            eprintln!(
+                "{:?} not skipped for {:?} -- not in {:?}",
+                pathset, self.name, builder.config.exclude
+            );
+        }
+        false
     }
 
     fn run(v: &[StepDescription], builder: &Builder<'_>, paths: &[PathBuf]) {
@@ -195,7 +206,7 @@ impl StepDescription {
 
         if paths.is_empty() || builder.config.include_default_paths {
             for (desc, should_run) in v.iter().zip(&should_runs) {
-                if desc.default && should_run.is_really_default {
+                if desc.default && should_run.is_really_default() {
                     for pathset in &should_run.paths {
                         desc.maybe_run(builder, pathset);
                     }
@@ -228,7 +239,11 @@ impl StepDescription {
     }
 }
 
-#[derive(Clone)]
+enum ReallyDefault<'a> {
+    Bool(bool),
+    Lazy(Lazy<bool, Box<dyn Fn() -> bool + 'a>>),
+}
+
 pub struct ShouldRun<'a> {
     pub builder: &'a Builder<'a>,
     // use a BTreeSet to maintain sort order
@@ -236,7 +251,7 @@ pub struct ShouldRun<'a> {
 
     // If this is a default rule, this is an additional constraint placed on
     // its run. Generally something like compiler docs being enabled.
-    is_really_default: bool,
+    is_really_default: ReallyDefault<'a>,
 }
 
 impl<'a> ShouldRun<'a> {
@@ -244,13 +259,25 @@ impl<'a> ShouldRun<'a> {
         ShouldRun {
             builder,
             paths: BTreeSet::new(),
-            is_really_default: true, // by default no additional conditions
+            is_really_default: ReallyDefault::Bool(true), // by default no additional conditions
         }
     }
 
     pub fn default_condition(mut self, cond: bool) -> Self {
-        self.is_really_default = cond;
+        self.is_really_default = ReallyDefault::Bool(cond);
         self
+    }
+
+    pub fn lazy_default_condition(mut self, lazy_cond: Box<dyn Fn() -> bool + 'a>) -> Self {
+        self.is_really_default = ReallyDefault::Lazy(Lazy::new(lazy_cond));
+        self
+    }
+
+    pub fn is_really_default(&self) -> bool {
+        match &self.is_really_default {
+            ReallyDefault::Bool(val) => *val,
+            ReallyDefault::Lazy(lazy) => *lazy.deref(),
+        }
     }
 
     /// Indicates it should run if the command-line selects the given crate or
@@ -432,6 +459,7 @@ impl<'a> Builder<'a> {
                 test::RustdocTheme,
                 test::RustdocUi,
                 test::RustdocJson,
+                test::HtmlCheck,
                 // Run bootstrap close to the end as it's unlikely to fail
                 test::Bootstrap,
                 // Run run-make last, since these won't pass without make on Windows
@@ -446,6 +474,7 @@ impl<'a> Builder<'a> {
                 doc::Std,
                 doc::Rustc,
                 doc::Rustdoc,
+                doc::Rustfmt,
                 doc::ErrorIndex,
                 doc::Nomicon,
                 doc::Reference,
@@ -549,7 +578,7 @@ impl<'a> Builder<'a> {
     pub fn new(build: &Build) -> Builder<'_> {
         let (kind, paths) = match build.config.cmd {
             Subcommand::Build { ref paths } => (Kind::Build, &paths[..]),
-            Subcommand::Check { ref paths, all_targets: _ } => (Kind::Check, &paths[..]),
+            Subcommand::Check { ref paths } => (Kind::Check, &paths[..]),
             Subcommand::Clippy { ref paths, .. } => (Kind::Clippy, &paths[..]),
             Subcommand::Fix { ref paths } => (Kind::Fix, &paths[..]),
             Subcommand::Doc { ref paths, .. } => (Kind::Doc, &paths[..]),
@@ -1176,6 +1205,14 @@ impl<'a> Builder<'a> {
                 self.config.rust_debug_assertions.to_string()
             },
         );
+        cargo.env(
+            profile_var("OVERFLOW_CHECKS"),
+            if mode == Mode::Std {
+                self.config.rust_overflow_checks_std.to_string()
+            } else {
+                self.config.rust_overflow_checks.to_string()
+            },
+        );
 
         // `dsymutil` adds time to builds on Apple platforms for no clear benefit, and also makes
         // it more difficult for debuggers to find debug info. The compiler currently defaults to
@@ -1251,7 +1288,7 @@ impl<'a> Builder<'a> {
         // requirement, but the `-L` library path is not propagated across
         // separate Cargo projects. We can add LLVM's library path to the
         // platform-specific environment variable as a workaround.
-        if mode == Mode::ToolRustc {
+        if mode == Mode::ToolRustc || mode == Mode::Codegen {
             if let Some(llvm_config) = self.llvm_config(target) {
                 let llvm_libdir = output(Command::new(&llvm_config).arg("--libdir"));
                 add_link_lib_path(vec![llvm_libdir.trim().into()], &mut cargo);
@@ -1262,7 +1299,7 @@ impl<'a> Builder<'a> {
         // efficient initial-exec TLS model. This doesn't work with `dlopen`,
         // so we can't use it by default in general, but we can use it for tools
         // and our own internal libraries.
-        if !mode.must_support_dlopen() {
+        if !mode.must_support_dlopen() && !target.triple.starts_with("powerpc-") {
             rustflags.arg("-Ztls-model=initial-exec");
         }
 
@@ -1558,6 +1595,27 @@ impl<'a> Builder<'a> {
         self.verbose(&format!("{}< {:?}", "  ".repeat(self.stack.borrow().len()), step));
         self.cache.put(step, out.clone());
         out
+    }
+
+    /// Ensure that a given step is built *only if it's supposed to be built by default*, returning
+    /// its output. This will cache the step, so it's safe (and good!) to call this as often as
+    /// needed to ensure that all dependencies are build.
+    pub(crate) fn ensure_if_default<T, S: Step<Output = Option<T>>>(
+        &'a self,
+        step: S,
+    ) -> S::Output {
+        let desc = StepDescription::from::<S>();
+        let should_run = (desc.should_run)(ShouldRun::new(self));
+
+        // Avoid running steps contained in --exclude
+        for pathset in &should_run.paths {
+            if desc.is_excluded(self, pathset) {
+                return None;
+            }
+        }
+
+        // Only execute if it's supposed to run as default
+        if desc.default && should_run.is_really_default() { self.ensure(step) } else { None }
     }
 }
 

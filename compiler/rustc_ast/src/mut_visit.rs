@@ -420,7 +420,7 @@ pub fn noop_visit_use_tree<T: MutVisitor>(use_tree: &mut UseTree, vis: &mut T) {
 
 pub fn noop_flat_map_arm<T: MutVisitor>(mut arm: Arm, vis: &mut T) -> SmallVec<[Arm; 1]> {
     let Arm { attrs, pat, guard, body, span, id, is_placeholder: _ } = &mut arm;
-    visit_attrs(attrs, vis);
+    visit_thin_attrs(attrs, vis);
     vis.visit_id(id);
     vis.visit_pat(pat);
     visit_opt(guard, |guard| vis.visit_expr(guard));
@@ -504,7 +504,7 @@ pub fn noop_flat_map_variant<T: MutVisitor>(
     let Variant { ident, vis, attrs, id, data, disr_expr, span, is_placeholder: _ } = &mut variant;
     visitor.visit_ident(ident);
     visitor.visit_vis(vis);
-    visit_attrs(attrs, visitor);
+    visit_thin_attrs(attrs, visitor);
     visitor.visit_id(id);
     visitor.visit_variant_data(data);
     visit_opt(disr_expr, |disr_expr| visitor.visit_anon_const(disr_expr));
@@ -571,11 +571,20 @@ pub fn noop_visit_parenthesized_parameter_data<T: MutVisitor>(
 }
 
 pub fn noop_visit_local<T: MutVisitor>(local: &mut P<Local>, vis: &mut T) {
-    let Local { id, pat, ty, init, span, attrs, tokens } = local.deref_mut();
+    let Local { id, pat, ty, kind, span, attrs, tokens } = local.deref_mut();
     vis.visit_id(id);
     vis.visit_pat(pat);
     visit_opt(ty, |ty| vis.visit_ty(ty));
-    visit_opt(init, |init| vis.visit_expr(init));
+    match kind {
+        LocalKind::Decl => {}
+        LocalKind::Init(init) => {
+            vis.visit_expr(init);
+        }
+        LocalKind::InitElse(init, els) => {
+            vis.visit_expr(init);
+            vis.visit_block(els);
+        }
+    }
     vis.visit_span(span);
     visit_thin_attrs(attrs, vis);
     visit_lazy_tts(tokens, vis);
@@ -918,7 +927,7 @@ pub fn noop_flat_map_field_def<T: MutVisitor>(
     visitor.visit_vis(vis);
     visitor.visit_id(id);
     visitor.visit_ty(ty);
-    visit_attrs(attrs, visitor);
+    visit_thin_attrs(attrs, visitor);
     smallvec![fd]
 }
 
@@ -1179,13 +1188,10 @@ fn noop_visit_inline_asm<T: MutVisitor>(asm: &mut InlineAsm, vis: &mut T) {
     for (op, _) in &mut asm.operands {
         match op {
             InlineAsmOperand::In { expr, .. }
+            | InlineAsmOperand::Out { expr: Some(expr), .. }
             | InlineAsmOperand::InOut { expr, .. }
             | InlineAsmOperand::Sym { expr, .. } => vis.visit_expr(expr),
-            InlineAsmOperand::Out { expr, .. } => {
-                if let Some(expr) = expr {
-                    vis.visit_expr(expr);
-                }
-            }
+            InlineAsmOperand::Out { expr: None, .. } => {}
             InlineAsmOperand::SplitInOut { in_expr, out_expr, .. } => {
                 vis.visit_expr(in_expr);
                 if let Some(out_expr) = out_expr {
@@ -1237,7 +1243,7 @@ pub fn noop_visit_expr<T: MutVisitor>(
             vis.visit_ty(ty);
         }
         ExprKind::AddrOf(_, _, ohs) => vis.visit_expr(ohs),
-        ExprKind::Let(pat, scrutinee) => {
+        ExprKind::Let(pat, scrutinee, _) => {
             vis.visit_pat(pat);
             vis.visit_expr(scrutinee);
         }
@@ -1347,12 +1353,6 @@ pub fn noop_visit_expr<T: MutVisitor>(
         }
         ExprKind::Paren(expr) => {
             vis.visit_expr(expr);
-
-            // Nodes that are equal modulo `Paren` sugar no-ops should have the same IDs.
-            *id = expr.id;
-            vis.visit_span(span);
-            visit_thin_attrs(attrs, vis);
-            return;
         }
         ExprKind::Yield(expr) => {
             visit_opt(expr, |expr| vis.visit_expr(expr));
@@ -1380,7 +1380,17 @@ pub fn noop_flat_map_stmt<T: MutVisitor>(
 ) -> SmallVec<[Stmt; 1]> {
     vis.visit_id(&mut id);
     vis.visit_span(&mut span);
-    noop_flat_map_stmt_kind(kind, vis).into_iter().map(|kind| Stmt { id, kind, span }).collect()
+    let stmts: SmallVec<_> = noop_flat_map_stmt_kind(kind, vis)
+        .into_iter()
+        .map(|kind| Stmt { id, kind, span })
+        .collect();
+    if stmts.len() > 1 {
+        panic!(
+            "cloning statement `NodeId`s is prohibited by default, \
+             the visitor should implement custom statement visiting"
+        );
+    }
+    stmts
 }
 
 pub fn noop_flat_map_stmt_kind<T: MutVisitor>(

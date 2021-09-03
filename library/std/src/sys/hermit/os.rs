@@ -4,13 +4,13 @@ use crate::ffi::{CStr, OsStr, OsString};
 use crate::fmt;
 use crate::io;
 use crate::marker::PhantomData;
+use crate::os::unix::ffi::OsStringExt;
 use crate::path::{self, PathBuf};
 use crate::str;
 use crate::sync::Mutex;
 use crate::sys::hermit::abi;
 use crate::sys::memchr;
 use crate::sys::unsupported;
-use crate::sys_common::os_str_bytes::*;
 use crate::vec;
 
 pub fn errno() -> i32 {
@@ -140,13 +140,8 @@ pub fn env() -> Env {
     }
 }
 
-pub fn getenv(k: &OsStr) -> io::Result<Option<OsString>> {
-    unsafe {
-        match ENV.as_ref().unwrap().lock().unwrap().get_mut(k) {
-            Some(value) => Ok(Some(value.clone())),
-            None => Ok(None),
-        }
-    }
+pub fn getenv(k: &OsStr) -> Option<OsString> {
+    unsafe { ENV.as_ref().unwrap().lock().unwrap().get_mut(k).cloned() }
 }
 
 pub fn setenv(k: &OsStr, v: &OsStr) -> io::Result<()> {
