@@ -664,7 +664,7 @@ impl ToJson for SanitizerSet {
         self.into_iter()
             .map(|v| Some(v.as_str()?.to_json()))
             .collect::<Option<Vec<_>>>()
-            .unwrap_or_default()
+            .unwrap_or(Vec::new())
             .to_json()
     }
 }
@@ -802,7 +802,6 @@ supported_targets! {
     ("armv6-unknown-freebsd", armv6_unknown_freebsd),
     ("armv7-unknown-freebsd", armv7_unknown_freebsd),
     ("i686-unknown-freebsd", i686_unknown_freebsd),
-    ("powerpc-unknown-freebsd", powerpc_unknown_freebsd),
     ("powerpc64-unknown-freebsd", powerpc64_unknown_freebsd),
     ("powerpc64le-unknown-freebsd", powerpc64le_unknown_freebsd),
     ("x86_64-unknown-freebsd", x86_64_unknown_freebsd),
@@ -903,7 +902,6 @@ supported_targets! {
 
     ("riscv32i-unknown-none-elf", riscv32i_unknown_none_elf),
     ("riscv32imc-unknown-none-elf", riscv32imc_unknown_none_elf),
-    ("riscv32imc-esp-espidf", riscv32imc_esp_espidf),
     ("riscv32imac-unknown-none-elf", riscv32imac_unknown_none_elf),
     ("riscv32gc-unknown-linux-gnu", riscv32gc_unknown_linux_gnu),
     ("riscv32gc-unknown-linux-musl", riscv32gc_unknown_linux_musl),
@@ -919,11 +917,8 @@ supported_targets! {
 
     ("x86_64-unknown-uefi", x86_64_unknown_uefi),
     ("i686-unknown-uefi", i686_unknown_uefi),
-    ("aarch64-unknown-uefi", aarch64_unknown_uefi),
 
     ("nvptx64-nvidia-cuda", nvptx64_nvidia_cuda),
-
-    ("aarch64-unknown-optee-trustzone", aarch64_unknown_optee_trustzone),
 
     ("i686-wrs-vxworks", i686_wrs_vxworks),
     ("x86_64-wrs-vxworks", x86_64_wrs_vxworks),
@@ -1338,9 +1333,6 @@ pub struct TargetOptions {
 
     /// If present it's a default value to use for adjusting the C ABI.
     pub default_adjusted_cabi: Option<Abi>,
-
-    /// Minimum number of bits in #[repr(C)] enum. Defaults to 32.
-    pub c_enum_min_bits: u64,
 }
 
 impl Default for TargetOptions {
@@ -1445,7 +1437,6 @@ impl Default for TargetOptions {
             split_debuginfo: SplitDebuginfo::Off,
             supported_sanitizers: SanitizerSet::empty(),
             default_adjusted_cabi: None,
-            c_enum_min_bits: 32,
         }
     }
 }
@@ -1503,8 +1494,7 @@ impl Target {
             | Cdecl
             | EfiApi => true,
             X86Interrupt => ["x86", "x86_64"].contains(&&self.arch[..]),
-            Aapcs => "arm" == self.arch,
-            CCmseNonSecureCall => ["arm", "aarch64"].contains(&&self.arch[..]),
+            Aapcs | CCmseNonSecureCall => ["arm", "aarch64"].contains(&&self.arch[..]),
             Win64 | SysV64 => self.arch == "x86_64",
             PtxKernel => self.arch == "nvptx64",
             Msp430Interrupt => self.arch == "msp430",
@@ -1608,12 +1598,6 @@ impl Target {
             ($key_name:ident, bool) => ( {
                 let name = (stringify!($key_name)).replace("_", "-");
                 if let Some(s) = obj.remove_key(&name).and_then(|j| Json::as_boolean(&j)) {
-                    base.$key_name = s;
-                }
-            } );
-            ($key_name:ident, u64) => ( {
-                let name = (stringify!($key_name)).replace("_", "-");
-                if let Some(s) = obj.remove_key(&name).and_then(|j| Json::as_u64(&j)) {
                     base.$key_name = s;
                 }
             } );
@@ -2030,11 +2014,10 @@ impl Target {
         key!(split_debuginfo, SplitDebuginfo)?;
         key!(supported_sanitizers, SanitizerSet)?;
         key!(default_adjusted_cabi, Option<Abi>)?;
-        key!(c_enum_min_bits, u64);
 
         if base.is_builtin {
             // This can cause unfortunate ICEs later down the line.
-            return Err("may not set is_builtin for targets not built-in".to_string());
+            return Err(format!("may not set is_builtin for targets not built-in"));
         }
         // Each field should have been read using `Json::remove_key` so any keys remaining are unused.
         let remaining_keys = obj.as_object().ok_or("Expected JSON object for target")?.keys();
@@ -2269,7 +2252,6 @@ impl ToJson for Target {
         target_option_val!(has_thumb_interworking);
         target_option_val!(split_debuginfo);
         target_option_val!(supported_sanitizers);
-        target_option_val!(c_enum_min_bits);
 
         if let Some(abi) = self.default_adjusted_cabi {
             d.insert("default-adjusted-cabi".to_string(), Abi::name(abi).to_json());

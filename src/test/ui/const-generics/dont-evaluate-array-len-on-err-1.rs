@@ -1,4 +1,4 @@
-#![feature(generic_const_exprs)]
+#![feature(const_generics, const_evaluatable_checked)]
 #![allow(incomplete_features)]
 
 // This tests that during error handling for the "trait not implemented" error

@@ -203,11 +203,7 @@ impl BaseTypeMethods<'tcx> for CodegenCx<'ll, 'tcx> {
     }
 
     fn element_type(&self, ty: &'ll Type) -> &'ll Type {
-        match self.type_kind(ty) {
-            TypeKind::Array | TypeKind::Vector => unsafe { llvm::LLVMGetElementType(ty) },
-            TypeKind::Pointer => bug!("element_type is not supported for opaque pointers"),
-            other => bug!("element_type called on unsupported type {:?}", other),
-        }
+        unsafe { llvm::LLVMGetElementType(ty) }
     }
 
     fn vector_length(&self, ty: &'ll Type) -> usize {
@@ -266,7 +262,7 @@ impl LayoutTypeMethods<'tcx> for CodegenCx<'ll, 'tcx> {
         layout.is_llvm_scalar_pair()
     }
     fn backend_field_index(&self, layout: TyAndLayout<'tcx>, index: usize) -> u64 {
-        layout.llvm_field_index(self, index)
+        layout.llvm_field_index(index)
     }
     fn scalar_pair_element_backend_type(
         &self,
@@ -278,9 +274,6 @@ impl LayoutTypeMethods<'tcx> for CodegenCx<'ll, 'tcx> {
     }
     fn cast_backend_type(&self, ty: &CastTarget) -> &'ll Type {
         ty.llvm_type(self)
-    }
-    fn fn_decl_backend_type(&self, fn_abi: &FnAbi<'tcx, Ty<'tcx>>) -> &'ll Type {
-        fn_abi.llvm_type(self)
     }
     fn fn_ptr_backend_type(&self, fn_abi: &FnAbi<'tcx, Ty<'tcx>>) -> &'ll Type {
         fn_abi.ptr_to_llvm_type(self)

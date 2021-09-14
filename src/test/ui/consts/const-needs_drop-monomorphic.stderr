@@ -7,13 +7,13 @@ LL | struct Bool<const B: bool> {}
 LL |     Bool::<{ std::mem::needs_drop::<T>() }>::assert();
    |                                              ^^^^^^ function or associated item cannot be called on `Bool<{ std::mem::needs_drop::<T>() }>` due to unsatisfied trait bounds
 
-error: unconstrained generic constant
+error: constant expression depends on a generic parameter
   --> $DIR/const-needs_drop-monomorphic.rs:11:5
    |
 LL |     Bool::<{ std::mem::needs_drop::<T>() }>::assert();
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
-   = help: try adding a `where` bound using this expression: `where [(); { std::mem::needs_drop::<T>() }]:`
+   = note: this may fail depending on what value the parameter takes
 
 error: aborting due to 2 previous errors
 

@@ -4,7 +4,6 @@ use crate::infer::canonical::{
 use crate::infer::{InferCtxt, InferOk};
 use crate::traits::query::Fallible;
 use crate::traits::ObligationCause;
-use rustc_infer::infer::canonical::Canonical;
 use rustc_middle::ty::fold::TypeFoldable;
 use rustc_middle::ty::{ParamEnvAnd, TyCtxt};
 use std::fmt;
@@ -31,18 +30,10 @@ pub trait TypeOp<'tcx>: Sized + fmt::Debug {
     /// Processes the operation and all resulting obligations,
     /// returning the final result along with any region constraints
     /// (they will be given over to the NLL region solver).
-    fn fully_perform(self, infcx: &InferCtxt<'_, 'tcx>) -> Fallible<TypeOpOutput<'tcx, Self>>;
-}
-
-/// The output from performing a type op
-pub struct TypeOpOutput<'tcx, Op: TypeOp<'tcx>> {
-    /// The output from the type op.
-    pub output: Op::Output,
-    /// Any region constraints from performing the type op.
-    pub constraints: Option<Rc<QueryRegionConstraints<'tcx>>>,
-    /// The canonicalized form of the query.
-    /// This for error reporting to be able to rerun the query.
-    pub canonicalized_query: Option<Canonical<'tcx, Op>>,
+    fn fully_perform(
+        self,
+        infcx: &InferCtxt<'_, 'tcx>,
+    ) -> Fallible<(Self::Output, Option<Rc<QueryRegionConstraints<'tcx>>>)>;
 }
 
 /// "Query type ops" are type ops that are implemented using a
@@ -54,7 +45,7 @@ pub struct TypeOpOutput<'tcx, Op: TypeOp<'tcx>> {
 /// which produces the resulting query region constraints.
 ///
 /// [c]: https://rust-lang.github.io/chalk/book/canonical_queries/canonicalization.html
-pub trait QueryTypeOp<'tcx>: fmt::Debug + Copy + TypeFoldable<'tcx> + 'tcx {
+pub trait QueryTypeOp<'tcx>: fmt::Debug + Sized + TypeFoldable<'tcx> + 'tcx {
     type QueryResponse: TypeFoldable<'tcx>;
 
     /// Give query the option for a simple fast path that never
@@ -80,9 +71,9 @@ pub trait QueryTypeOp<'tcx>: fmt::Debug + Copy + TypeFoldable<'tcx> + 'tcx {
         query_key: ParamEnvAnd<'tcx, Self>,
         infcx: &InferCtxt<'_, 'tcx>,
         output_query_region_constraints: &mut QueryRegionConstraints<'tcx>,
-    ) -> Fallible<(Self::QueryResponse, Option<Canonical<'tcx, ParamEnvAnd<'tcx, Self>>>)> {
+    ) -> Fallible<Self::QueryResponse> {
         if let Some(result) = QueryTypeOp::try_fast_path(infcx.tcx, &query_key) {
-            return Ok((result, None));
+            return Ok(result);
         }
 
         // FIXME(#33684) -- We need to use
@@ -110,14 +101,14 @@ pub trait QueryTypeOp<'tcx>: fmt::Debug + Copy + TypeFoldable<'tcx> + 'tcx {
         // create obligations. In that case, we have to go
         // fulfill them. We do this via a (recursive) query.
         for obligation in obligations {
-            let ((), _) = ProvePredicate::fully_perform_into(
+            let () = ProvePredicate::fully_perform_into(
                 obligation.param_env.and(ProvePredicate::new(obligation.predicate)),
                 infcx,
                 output_query_region_constraints,
             )?;
         }
 
-        Ok((value, Some(canonical_self)))
+        Ok(value)
     }
 }
 
@@ -127,16 +118,18 @@ where
 {
     type Output = Q::QueryResponse;
 
-    fn fully_perform(self, infcx: &InferCtxt<'_, 'tcx>) -> Fallible<TypeOpOutput<'tcx, Self>> {
+    fn fully_perform(
+        self,
+        infcx: &InferCtxt<'_, 'tcx>,
+    ) -> Fallible<(Self::Output, Option<Rc<QueryRegionConstraints<'tcx>>>)> {
         let mut region_constraints = QueryRegionConstraints::default();
-        let (output, canonicalized_query) =
-            Q::fully_perform_into(self, infcx, &mut region_constraints)?;
+        let r = Q::fully_perform_into(self, infcx, &mut region_constraints)?;
 
         // Promote the final query-region-constraints into a
         // (optional) ref-counted vector:
-        let region_constraints =
+        let opt_qrc =
             if region_constraints.is_empty() { None } else { Some(Rc::new(region_constraints)) };
 
-        Ok(TypeOpOutput { output, constraints: region_constraints, canonicalized_query })
+        Ok((r, opt_qrc))
     }
 }

@@ -315,7 +315,7 @@ fn has_physical_root(s: &[u8], prefix: Option<Prefix<'_>>) -> bool {
 }
 
 // basic workhorse for splitting stem and extension
-fn rsplit_file_at_dot(file: &OsStr) -> (Option<&OsStr>, Option<&OsStr>) {
+fn split_file_at_dot(file: &OsStr) -> (Option<&OsStr>, Option<&OsStr>) {
     if os_str_as_u8_slice(file) == b".." {
         return (Some(file), None);
     }
@@ -332,25 +332,6 @@ fn rsplit_file_at_dot(file: &OsStr) -> (Option<&OsStr>, Option<&OsStr>) {
     } else {
         unsafe { (before.map(|s| u8_slice_as_os_str(s)), after.map(|s| u8_slice_as_os_str(s))) }
     }
-}
-
-fn split_file_at_dot(file: &OsStr) -> (&OsStr, Option<&OsStr>) {
-    let slice = os_str_as_u8_slice(file);
-    if slice == b".." {
-        return (file, None);
-    }
-
-    // The unsafety here stems from converting between &OsStr and &[u8]
-    // and back. This is safe to do because (1) we only look at ASCII
-    // contents of the encoding and (2) new &OsStr values are produced
-    // only from ASCII-bounded slices of existing &OsStr values.
-    let i = match slice[1..].iter().position(|b| *b == b'.') {
-        Some(i) => i + 1,
-        None => return (file, None),
-    };
-    let before = &slice[..i];
-    let after = &slice[i + 1..];
-    unsafe { (u8_slice_as_os_str(before), Some(u8_slice_as_os_str(after))) }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -981,7 +962,7 @@ impl cmp::Eq for Components<'_> {}
 impl<'a> cmp::PartialOrd for Components<'a> {
     #[inline]
     fn partial_cmp(&self, other: &Components<'a>) -> Option<cmp::Ordering> {
-        Some(compare_components(self.clone(), other.clone()))
+        Iterator::partial_cmp(self.clone(), other.clone())
     }
 }
 
@@ -989,41 +970,8 @@ impl<'a> cmp::PartialOrd for Components<'a> {
 impl cmp::Ord for Components<'_> {
     #[inline]
     fn cmp(&self, other: &Self) -> cmp::Ordering {
-        compare_components(self.clone(), other.clone())
+        Iterator::cmp(self.clone(), other.clone())
     }
-}
-
-fn compare_components(mut left: Components<'_>, mut right: Components<'_>) -> cmp::Ordering {
-    // Fast path for long shared prefixes
-    //
-    // - compare raw bytes to find first mismatch
-    // - backtrack to find separator before mismatch to avoid ambiguous parsings of '.' or '..' characters
-    // - if found update state to only do a component-wise comparison on the remainder,
-    //   otherwise do it on the full path
-    //
-    // The fast path isn't taken for paths with a PrefixComponent to avoid backtracking into
-    // the middle of one
-    if left.prefix.is_none() && right.prefix.is_none() && left.front == right.front {
-        // this might benefit from a [u8]::first_mismatch simd implementation, if it existed
-        let first_difference =
-            match left.path.iter().zip(right.path.iter()).position(|(&a, &b)| a != b) {
-                None if left.path.len() == right.path.len() => return cmp::Ordering::Equal,
-                None => left.path.len().min(right.path.len()),
-                Some(diff) => diff,
-            };
-
-        if let Some(previous_sep) =
-            left.path[..first_difference].iter().rposition(|&b| left.is_sep_byte(b))
-        {
-            let mismatched_component_start = previous_sep + 1;
-            left.path = &left.path[mismatched_component_start..];
-            left.front = State::Body;
-            right.path = &right.path[mismatched_component_start..];
-            right.front = State::Body;
-        }
-    }
-
-    Iterator::cmp(left, right)
 }
 
 /// An iterator over [`Path`] and its ancestors.
@@ -1450,7 +1398,7 @@ impl PathBuf {
     /// Invokes [`shrink_to`] on the underlying instance of [`OsString`].
     ///
     /// [`shrink_to`]: OsString::shrink_to
-    #[stable(feature = "shrink_to", since = "1.56.0")]
+    #[unstable(feature = "shrink_to", issue = "56431")]
     #[inline]
     pub fn shrink_to(&mut self, min_capacity: usize) {
         self.inner.shrink_to(min_capacity)
@@ -1756,7 +1704,7 @@ impl cmp::Eq for PathBuf {}
 impl cmp::PartialOrd for PathBuf {
     #[inline]
     fn partial_cmp(&self, other: &PathBuf) -> Option<cmp::Ordering> {
-        Some(compare_components(self.components(), other.components()))
+        self.components().partial_cmp(other.components())
     }
 }
 
@@ -1764,7 +1712,7 @@ impl cmp::PartialOrd for PathBuf {
 impl cmp::Ord for PathBuf {
     #[inline]
     fn cmp(&self, other: &PathBuf) -> cmp::Ordering {
-        compare_components(self.components(), other.components())
+        self.components().cmp(other.components())
     }
 }
 
@@ -2232,49 +2180,9 @@ impl Path {
     /// assert_eq!("foo", Path::new("foo.rs").file_stem().unwrap());
     /// assert_eq!("foo.tar", Path::new("foo.tar.gz").file_stem().unwrap());
     /// ```
-    ///
-    /// # See Also
-    /// This method is similar to [`Path::file_prefix`], which extracts the portion of the file name
-    /// before the *first* `.`
-    ///
-    /// [`Path::file_prefix`]: Path::file_prefix
-    ///
     #[stable(feature = "rust1", since = "1.0.0")]
     pub fn file_stem(&self) -> Option<&OsStr> {
-        self.file_name().map(rsplit_file_at_dot).and_then(|(before, after)| before.or(after))
-    }
-
-    /// Extracts the prefix of [`self.file_name`].
-    ///
-    /// The prefix is:
-    ///
-    /// * [`None`], if there is no file name;
-    /// * The entire file name if there is no embedded `.`;
-    /// * The portion of the file name before the first non-beginning `.`;
-    /// * The entire file name if the file name begins with `.` and has no other `.`s within;
-    /// * The portion of the file name before the second `.` if the file name begins with `.`
-    ///
-    /// [`self.file_name`]: Path::file_name
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![feature(path_file_prefix)]
-    /// use std::path::Path;
-    ///
-    /// assert_eq!("foo", Path::new("foo.rs").file_prefix().unwrap());
-    /// assert_eq!("foo", Path::new("foo.tar.gz").file_prefix().unwrap());
-    /// ```
-    ///
-    /// # See Also
-    /// This method is similar to [`Path::file_stem`], which extracts the portion of the file name
-    /// before the *last* `.`
-    ///
-    /// [`Path::file_stem`]: Path::file_stem
-    ///
-    #[unstable(feature = "path_file_prefix", issue = "86319")]
-    pub fn file_prefix(&self) -> Option<&OsStr> {
-        self.file_name().map(split_file_at_dot).and_then(|(before, _after)| Some(before))
+        self.file_name().map(split_file_at_dot).and_then(|(before, after)| before.or(after))
     }
 
     /// Extracts the extension of [`self.file_name`], if possible.
@@ -2298,7 +2206,7 @@ impl Path {
     /// ```
     #[stable(feature = "rust1", since = "1.0.0")]
     pub fn extension(&self) -> Option<&OsStr> {
-        self.file_name().map(rsplit_file_at_dot).and_then(|(before, after)| before.and(after))
+        self.file_name().map(split_file_at_dot).and_then(|(before, after)| before.and(after))
     }
 
     /// Creates an owned [`PathBuf`] with `path` adjoined to `self`.
@@ -2778,7 +2686,7 @@ impl fmt::Display for Display<'_> {
 impl cmp::PartialEq for Path {
     #[inline]
     fn eq(&self, other: &Path) -> bool {
-        self.components() == other.components()
+        self.components().eq(other.components())
     }
 }
 
@@ -2798,7 +2706,7 @@ impl cmp::Eq for Path {}
 impl cmp::PartialOrd for Path {
     #[inline]
     fn partial_cmp(&self, other: &Path) -> Option<cmp::Ordering> {
-        Some(compare_components(self.components(), other.components()))
+        self.components().partial_cmp(other.components())
     }
 }
 
@@ -2806,7 +2714,7 @@ impl cmp::PartialOrd for Path {
 impl cmp::Ord for Path {
     #[inline]
     fn cmp(&self, other: &Path) -> cmp::Ordering {
-        compare_components(self.components(), other.components())
+        self.components().cmp(other.components())
     }
 }
 

@@ -3,8 +3,6 @@
 use super::fd::WasiFd;
 use crate::io::{self, IoSlice, IoSliceMut};
 use crate::mem::ManuallyDrop;
-use crate::os::raw;
-use crate::os::wasi::io::{AsRawFd, FromRawFd};
 
 pub struct Stdin;
 pub struct Stdout;
@@ -14,11 +12,9 @@ impl Stdin {
     pub const fn new() -> Stdin {
         Stdin
     }
-}
 
-impl AsRawFd for Stdin {
     #[inline]
-    fn as_raw_fd(&self) -> raw::c_int {
+    pub fn as_raw_fd(&self) -> u32 {
         0
     }
 }
@@ -29,7 +25,7 @@ impl io::Read for Stdin {
     }
 
     fn read_vectored(&mut self, data: &mut [IoSliceMut<'_>]) -> io::Result<usize> {
-        ManuallyDrop::new(unsafe { WasiFd::from_raw_fd(self.as_raw_fd()) }).read(data)
+        ManuallyDrop::new(unsafe { WasiFd::from_raw(self.as_raw_fd()) }).read(data)
     }
 
     #[inline]
@@ -42,11 +38,9 @@ impl Stdout {
     pub const fn new() -> Stdout {
         Stdout
     }
-}
 
-impl AsRawFd for Stdout {
     #[inline]
-    fn as_raw_fd(&self) -> raw::c_int {
+    pub fn as_raw_fd(&self) -> u32 {
         1
     }
 }
@@ -57,7 +51,7 @@ impl io::Write for Stdout {
     }
 
     fn write_vectored(&mut self, data: &[IoSlice<'_>]) -> io::Result<usize> {
-        ManuallyDrop::new(unsafe { WasiFd::from_raw_fd(self.as_raw_fd()) }).write(data)
+        ManuallyDrop::new(unsafe { WasiFd::from_raw(self.as_raw_fd()) }).write(data)
     }
 
     #[inline]
@@ -73,11 +67,9 @@ impl Stderr {
     pub const fn new() -> Stderr {
         Stderr
     }
-}
 
-impl AsRawFd for Stderr {
     #[inline]
-    fn as_raw_fd(&self) -> raw::c_int {
+    pub fn as_raw_fd(&self) -> u32 {
         2
     }
 }
@@ -88,7 +80,7 @@ impl io::Write for Stderr {
     }
 
     fn write_vectored(&mut self, data: &[IoSlice<'_>]) -> io::Result<usize> {
-        ManuallyDrop::new(unsafe { WasiFd::from_raw_fd(self.as_raw_fd()) }).write(data)
+        ManuallyDrop::new(unsafe { WasiFd::from_raw(self.as_raw_fd()) }).write(data)
     }
 
     #[inline]

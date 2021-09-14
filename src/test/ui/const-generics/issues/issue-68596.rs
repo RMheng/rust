@@ -1,4 +1,8 @@
 // check-pass
+// revisions: full min
+#![cfg_attr(full, feature(const_generics))]
+#![cfg_attr(full, allow(incomplete_features))]
+
 pub struct S(u8);
 
 impl S {

@@ -10,7 +10,6 @@
 // ignore-mips64
 
 #![feature(llvm_asm)]
-#![allow(deprecated)] // llvm_asm!
 
 fn foo(x: isize) { println!("{}", x); }
 

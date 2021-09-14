@@ -23,26 +23,25 @@ use rustc_hir::HirId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::edition::Edition;
 use rustc_span::Span;
-
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::default::Default;
 use std::fmt::Write;
-use std::ops::{ControlFlow, Range};
+use std::ops::Range;
 use std::str;
 
 use crate::clean::RenderedLink;
 use crate::doctest;
 use crate::html::escape::Escape;
-use crate::html::format::Buffer;
 use crate::html::highlight;
-use crate::html::length_limit::HtmlWithLimit;
 use crate::html::toc::TocBuilder;
 
 use pulldown_cmark::{
     html, BrokenLink, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag,
 };
+
+use super::format::Buffer;
 
 #[cfg(test)]
 mod tests;
@@ -236,9 +235,9 @@ impl<'a, I: Iterator<Item = Event<'a>>> Iterator for CodeBlocks<'_, 'a, I> {
                     return Some(Event::Html(
                         format!(
                             "<div class=\"example-wrap\">\
-                                 <pre class=\"language-{}\"><code>{}</code></pre>\
+                                 <pre{}>{}</pre>\
                              </div>",
-                            lang,
+                            format!(" class=\"language-{}\"", lang),
                             Escape(&text),
                         )
                         .into(),
@@ -331,7 +330,6 @@ impl<'a, I: Iterator<Item = Event<'a>>> Iterator for CodeBlocks<'_, 'a, I> {
             playground_button.as_deref(),
             tooltip,
             edition,
-            None,
             None,
         );
         Some(Event::Html(s.into_inner().into()))
@@ -1083,6 +1081,15 @@ fn markdown_summary_with_limit(
         return (String::new(), false);
     }
 
+    let mut s = String::with_capacity(md.len() * 3 / 2);
+    let mut text_length = 0;
+    let mut stopped_early = false;
+
+    fn push(s: &mut String, text_length: &mut usize, text: &str) {
+        s.push_str(text);
+        *text_length += text.len();
+    }
+
     let mut replacer = |broken_link: BrokenLink<'_>| {
         if let Some(link) =
             link_names.iter().find(|link| &*link.original_text == broken_link.reference)
@@ -1094,48 +1101,56 @@ fn markdown_summary_with_limit(
     };
 
     let p = Parser::new_with_broken_link_callback(md, opts(), Some(&mut replacer));
-    let mut p = LinkReplacer::new(p, link_names);
+    let p = LinkReplacer::new(p, link_names);
 
-    let mut buf = HtmlWithLimit::new(length_limit);
-    let mut stopped_early = false;
-    p.try_for_each(|event| {
+    'outer: for event in p {
         match &event {
             Event::Text(text) => {
-                let r =
-                    text.split_inclusive(char::is_whitespace).try_for_each(|word| buf.push(word));
-                if r.is_break() {
-                    stopped_early = true;
+                for word in text.split_inclusive(char::is_whitespace) {
+                    if text_length + word.len() >= length_limit {
+                        stopped_early = true;
+                        break 'outer;
+                    }
+
+                    push(&mut s, &mut text_length, word);
                 }
-                return r;
             }
             Event::Code(code) => {
-                buf.open_tag("code");
-                let r = buf.push(code);
-                if r.is_break() {
+                if text_length + code.len() >= length_limit {
                     stopped_early = true;
-                } else {
-                    buf.close_tag();
+                    break;
                 }
-                return r;
+
+                s.push_str("<code>");
+                push(&mut s, &mut text_length, code);
+                s.push_str("</code>");
             }
             Event::Start(tag) => match tag {
-                Tag::Emphasis => buf.open_tag("em"),
-                Tag::Strong => buf.open_tag("strong"),
-                Tag::CodeBlock(..) => return ControlFlow::BREAK,
+                Tag::Emphasis => s.push_str("<em>"),
+                Tag::Strong => s.push_str("<strong>"),
+                Tag::CodeBlock(..) => break,
                 _ => {}
             },
             Event::End(tag) => match tag {
-                Tag::Emphasis | Tag::Strong => buf.close_tag(),
-                Tag::Paragraph | Tag::Heading(..) => return ControlFlow::BREAK,
+                Tag::Emphasis => s.push_str("</em>"),
+                Tag::Strong => s.push_str("</strong>"),
+                Tag::Paragraph => break,
+                Tag::Heading(..) => break,
                 _ => {}
             },
-            Event::HardBreak | Event::SoftBreak => buf.push(" ")?,
-            _ => {}
-        };
-        ControlFlow::CONTINUE
-    });
+            Event::HardBreak | Event::SoftBreak => {
+                if text_length + 1 >= length_limit {
+                    stopped_early = true;
+                    break;
+                }
 
-    (buf.finish(), stopped_early)
+                push(&mut s, &mut text_length, " ");
+            }
+            _ => {}
+        }
+    }
+
+    (s, stopped_early)
 }
 
 /// Renders a shortened first paragraph of the given Markdown as a subset of Markdown,

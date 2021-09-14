@@ -27,7 +27,6 @@ impl<'a> SpanUtils<'a> {
                         .to_string()
                 } else {
                     self.sess
-                        .opts
                         .working_dir
                         .remapped_path_if_available()
                         .join(&path)

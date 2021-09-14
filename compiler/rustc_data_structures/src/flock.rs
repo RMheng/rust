@@ -222,10 +222,6 @@ cfg_if! {
                 let msg = "file locks not supported on this platform";
                 Err(io::Error::new(io::ErrorKind::Other, msg))
             }
-
-            pub fn error_unsupported(_err: &io::Error) -> bool {
-                true
-            }
         }
     }
 }

@@ -64,7 +64,7 @@ use crate::infer::outlives::verify::VerifyBoundCx;
 use crate::infer::{
     self, GenericKind, InferCtxt, RegionObligation, SubregionOrigin, UndoLog, VerifyBound,
 };
-use crate::traits::{ObligationCause, ObligationCauseCode};
+use crate::traits::ObligationCause;
 use rustc_middle::ty::outlives::Component;
 use rustc_middle::ty::subst::GenericArgKind;
 use rustc_middle::ty::{self, Region, Ty, TyCtxt, TypeFoldable};
@@ -99,14 +99,7 @@ impl<'cx, 'tcx> InferCtxt<'cx, 'tcx> {
         cause: &ObligationCause<'tcx>,
     ) {
         let origin = SubregionOrigin::from_obligation_cause(cause, || {
-            infer::RelateParamBound(
-                cause.span,
-                sup_type,
-                match cause.code.peel_derives() {
-                    ObligationCauseCode::BindingObligation(_, span) => Some(*span),
-                    _ => None,
-                },
-            )
+            infer::RelateParamBound(cause.span, sup_type)
         });
 
         self.register_region_obligation(

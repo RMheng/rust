@@ -1,6 +1,9 @@
 // check-pass
 
-#![feature(type_alias_impl_trait)]
+// revisions: min full
+#![feature(min_type_alias_impl_trait)]
+#![cfg_attr(full, feature(type_alias_impl_trait))]
+//[full]~^ WARN incomplete
 
 use std::iter::{once, Chain};
 

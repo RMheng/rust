@@ -1,7 +1,5 @@
 // only-x86_64
 
-#![allow(deprecated)] // llvm_asm!
-
 fn main() {
     unsafe {
         println!("{:?}", asm!(""));

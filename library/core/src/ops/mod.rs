@@ -182,7 +182,13 @@ pub use self::range::{Range, RangeFrom, RangeFull, RangeTo};
 pub use self::range::{Bound, RangeBounds, RangeInclusive, RangeToInclusive};
 
 #[unstable(feature = "try_trait_v2", issue = "84277")]
-pub use self::try_trait::{FromResidual, Try};
+pub use self::try_trait::FromResidual;
+
+#[unstable(feature = "try_trait_v2", issue = "84277")]
+pub use self::try_trait::Try;
+
+#[unstable(feature = "try_trait_transition", reason = "for bootstrap", issue = "none")]
+pub(crate) use self::try_trait::Try as TryV2;
 
 #[unstable(feature = "generator_trait", issue = "43122")]
 pub use self::generator::{Generator, GeneratorState};

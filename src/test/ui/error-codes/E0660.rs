@@ -1,5 +1,4 @@
 #![feature(llvm_asm)]
-#![allow(deprecated)] // llvm_asm!
 
 fn main() {
     let a;

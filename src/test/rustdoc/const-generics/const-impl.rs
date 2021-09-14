@@ -1,4 +1,4 @@
-#![feature(adt_const_params)]
+#![feature(const_generics)]
 
 #![crate_name = "foo"]
 

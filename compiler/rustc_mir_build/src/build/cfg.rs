@@ -40,7 +40,7 @@ impl<'tcx> CFG<'tcx> {
     ) {
         self.push(
             block,
-            Statement { source_info, kind: StatementKind::Assign(Box::new((place, rvalue))) },
+            Statement { source_info, kind: StatementKind::Assign(box (place, rvalue)) },
         );
     }
 
@@ -51,12 +51,7 @@ impl<'tcx> CFG<'tcx> {
         temp: Place<'tcx>,
         constant: Constant<'tcx>,
     ) {
-        self.push_assign(
-            block,
-            source_info,
-            temp,
-            Rvalue::Use(Operand::Constant(Box::new(constant))),
-        );
+        self.push_assign(block, source_info, temp, Rvalue::Use(Operand::Constant(box constant)));
     }
 
     crate fn push_assign_unit(
@@ -70,11 +65,11 @@ impl<'tcx> CFG<'tcx> {
             block,
             source_info,
             place,
-            Rvalue::Use(Operand::Constant(Box::new(Constant {
+            Rvalue::Use(Operand::Constant(box Constant {
                 span: source_info.span,
                 user_ty: None,
                 literal: ty::Const::zero_sized(tcx, tcx.types.unit).into(),
-            }))),
+            })),
         );
     }
 
@@ -85,7 +80,7 @@ impl<'tcx> CFG<'tcx> {
         cause: FakeReadCause,
         place: Place<'tcx>,
     ) {
-        let kind = StatementKind::FakeRead(Box::new((cause, place)));
+        let kind = StatementKind::FakeRead(box (cause, place));
         let stmt = Statement { source_info, kind };
         self.push(block, stmt);
     }

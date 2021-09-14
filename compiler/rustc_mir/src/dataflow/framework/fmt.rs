@@ -33,7 +33,7 @@ pub trait DebugWithContext<C>: Eq + fmt::Debug {
         }
 
         write!(f, "\u{001f}-")?;
-        old.fmt_with(ctxt, f)
+        self.fmt_with(ctxt, f)
     }
 }
 

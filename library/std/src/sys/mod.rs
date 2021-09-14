@@ -43,9 +43,6 @@ cfg_if::cfg_if! {
     } else if #[cfg(all(target_vendor = "fortanix", target_env = "sgx"))] {
         mod sgx;
         pub use self::sgx::*;
-    } else if #[cfg(all(target_os = "optee", target_env = "trustzone"))] {
-        mod optee;
-        pub use self::optee::*;
     } else {
         mod unsupported;
         pub use self::unsupported::*;
@@ -61,8 +58,7 @@ cfg_if::cfg_if! {
 #[cfg(doc)]
 #[cfg(not(any(
     all(target_arch = "wasm32", not(target_os = "wasi")),
-    all(target_vendor = "fortanix", target_env = "sgx"),
-    target_os = "optee"
+    all(target_vendor = "fortanix", target_env = "sgx")
 )))]
 cfg_if::cfg_if! {
     if #[cfg(not(windows))] {

@@ -19,7 +19,6 @@ use rustc_middle::ty::util::IntTypeExt;
 use rustc_middle::ty::{self, adjustment::PointerCast, Ty, TyCtxt};
 use rustc_span::def_id::DefId;
 use rustc_span::symbol::{sym, Symbol};
-use rustc_span::Span;
 use rustc_target::abi::VariantIdx;
 
 use std::cmp::Ordering;
@@ -152,8 +151,6 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
 
     pub(super) fn perform_test(
         &mut self,
-        match_start_span: Span,
-        scrutinee_span: Span,
         block: BasicBlock,
         place_builder: PlaceBuilder<'tcx>,
         test: &Test<'tcx>,
@@ -209,15 +206,10 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
                 debug!("num_enum_variants: {}, variants: {:?}", num_enum_variants, variants);
                 let discr_ty = adt_def.repr.discr_type().to_ty(tcx);
                 let discr = self.temp(discr_ty, test.span);
-                self.cfg.push_assign(
-                    block,
-                    self.source_info(scrutinee_span),
-                    discr,
-                    Rvalue::Discriminant(place),
-                );
+                self.cfg.push_assign(block, source_info, discr, Rvalue::Discriminant(place));
                 self.cfg.terminate(
                     block,
-                    self.source_info(match_start_span),
+                    source_info,
                     TerminatorKind::SwitchInt {
                         discr: Operand::Move(discr),
                         switch_ty: discr_ty,
@@ -254,7 +246,7 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
                         targets: switch_targets,
                     }
                 };
-                self.cfg.terminate(block, self.source_info(match_start_span), terminator);
+                self.cfg.terminate(block, source_info, terminator);
             }
 
             TestKind::Eq { value, ty } => {
@@ -354,12 +346,7 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
         let result = self.temp(bool_ty, source_info.span);
 
         // result = op(left, right)
-        self.cfg.push_assign(
-            block,
-            source_info,
-            result,
-            Rvalue::BinaryOp(op, Box::new((left, right))),
-        );
+        self.cfg.push_assign(block, source_info, result, Rvalue::BinaryOp(op, box (left, right)));
 
         // branch based on result
         self.cfg.terminate(
@@ -442,7 +429,7 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
             block,
             source_info,
             TerminatorKind::Call {
-                func: Operand::Constant(Box::new(Constant {
+                func: Operand::Constant(box Constant {
                     span: source_info.span,
 
                     // FIXME(#54571): This constant comes from user input (a
@@ -452,7 +439,7 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
                     user_ty: None,
 
                     literal: method.into(),
-                })),
+                }),
                 args: vec![val, expect],
                 destination: Some((eq_result, eq_block)),
                 cleanup: None,

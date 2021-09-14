@@ -1,4 +1,5 @@
 // stderr-per-bitwidth
+#![feature(const_fn_transmute)]
 
 const fn foo() -> ! {
     unsafe { std::mem::transmute(()) }

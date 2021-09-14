@@ -5,20 +5,23 @@ use rustc_data_structures::sharded::{self, Sharded};
 use rustc_data_structures::stable_hasher::{HashStable, StableHasher};
 use rustc_data_structures::steal::Steal;
 use rustc_data_structures::sync::{AtomicU32, AtomicU64, Lock, Lrc, Ordering};
+use rustc_data_structures::unlikely;
+use rustc_errors::Diagnostic;
 use rustc_index::vec::IndexVec;
 use rustc_serialize::opaque::{FileEncodeResult, FileEncoder};
 
-use parking_lot::Mutex;
+use parking_lot::{Condvar, Mutex};
 use smallvec::{smallvec, SmallVec};
 use std::collections::hash_map::Entry;
 use std::hash::Hash;
 use std::marker::PhantomData;
+use std::mem;
 use std::sync::atomic::Ordering::Relaxed;
 
 use super::query::DepGraphQuery;
 use super::serialized::{GraphEncoder, SerializedDepGraph, SerializedDepNodeIndex};
 use super::{DepContext, DepKind, DepNode, HasDepContext, WorkProductId};
-use crate::query::{QueryContext, QuerySideEffects};
+use crate::query::QueryContext;
 
 #[cfg(debug_assertions)]
 use {super::debug::EdgeFilter, std::env};
@@ -84,7 +87,11 @@ struct DepGraphData<K: DepKind> {
 
     colors: DepNodeColorMap,
 
-    processed_side_effects: Mutex<FxHashSet<DepNodeIndex>>,
+    /// A set of loaded diagnostics that is in the progress of being emitted.
+    emitting_diagnostics: Mutex<FxHashSet<DepNodeIndex>>,
+
+    /// Used to wait for diagnostics to be emitted.
+    emitting_diagnostics_cond_var: Condvar,
 
     /// When we load, there may be `.o` files, cached MIR, or other such
     /// things available to us. If we find that they are not dirty, we
@@ -137,7 +144,8 @@ impl<K: DepKind> DepGraph<K> {
                 previous_work_products: prev_work_products,
                 dep_node_debug: Default::default(),
                 current,
-                processed_side_effects: Default::default(),
+                emitting_diagnostics: Default::default(),
+                emitting_diagnostics_cond_var: Condvar::new(),
                 previous: prev_graph,
                 colors: DepNodeColorMap::new(prev_graph_node_count),
             })),
@@ -683,7 +691,7 @@ impl<K: DepKind> DepGraph<K> {
 
         // FIXME: Store the fact that a node has diagnostics in a bit in the dep graph somewhere
         // Maybe store a list on disk and encode this fact in the DepNodeState
-        let side_effects = tcx.load_side_effects(prev_dep_node_index);
+        let diagnostics = tcx.load_diagnostics(prev_dep_node_index);
 
         #[cfg(not(parallel_compiler))]
         debug_assert!(
@@ -693,8 +701,8 @@ impl<K: DepKind> DepGraph<K> {
             dep_node
         );
 
-        if unlikely!(!side_effects.is_empty()) {
-            self.emit_side_effects(tcx, data, dep_node_index, side_effects);
+        if unlikely!(!diagnostics.is_empty()) {
+            self.emit_diagnostics(tcx, data, dep_node_index, prev_dep_node_index, diagnostics);
         }
 
         // ... and finally storing a "Green" entry in the color map.
@@ -709,26 +717,53 @@ impl<K: DepKind> DepGraph<K> {
     /// This may be called concurrently on multiple threads for the same dep node.
     #[cold]
     #[inline(never)]
-    fn emit_side_effects<Ctxt: QueryContext<DepKind = K>>(
+    fn emit_diagnostics<Ctxt: QueryContext<DepKind = K>>(
         &self,
         tcx: Ctxt,
         data: &DepGraphData<K>,
         dep_node_index: DepNodeIndex,
-        side_effects: QuerySideEffects,
+        prev_dep_node_index: SerializedDepNodeIndex,
+        diagnostics: Vec<Diagnostic>,
     ) {
-        let mut processed = data.processed_side_effects.lock();
+        let mut emitting = data.emitting_diagnostics.lock();
 
-        if processed.insert(dep_node_index) {
+        if data.colors.get(prev_dep_node_index) == Some(DepNodeColor::Green(dep_node_index)) {
+            // The node is already green so diagnostics must have been emitted already
+            return;
+        }
+
+        if emitting.insert(dep_node_index) {
             // We were the first to insert the node in the set so this thread
-            // must process side effects
+            // must emit the diagnostics and signal other potentially waiting
+            // threads after.
+            mem::drop(emitting);
 
             // Promote the previous diagnostics to the current session.
-            tcx.store_side_effects(dep_node_index, side_effects.clone());
+            tcx.store_diagnostics(dep_node_index, diagnostics.clone().into());
 
             let handle = tcx.dep_context().sess().diagnostic();
 
-            for diagnostic in side_effects.diagnostics {
+            for diagnostic in diagnostics {
                 handle.emit_diagnostic(&diagnostic);
+            }
+
+            // Mark the node as green now that diagnostics are emitted
+            data.colors.insert(prev_dep_node_index, DepNodeColor::Green(dep_node_index));
+
+            // Remove the node from the set
+            data.emitting_diagnostics.lock().remove(&dep_node_index);
+
+            // Wake up waiters
+            data.emitting_diagnostics_cond_var.notify_all();
+        } else {
+            // We must wait for the other thread to finish emitting the diagnostic
+
+            loop {
+                data.emitting_diagnostics_cond_var.wait(&mut emitting);
+                if data.colors.get(prev_dep_node_index) == Some(DepNodeColor::Green(dep_node_index))
+                {
+                    break;
+                }
             }
         }
     }

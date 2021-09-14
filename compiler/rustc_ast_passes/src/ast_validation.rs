@@ -15,13 +15,11 @@ use rustc_ast_pretty::pprust;
 use rustc_data_structures::fx::FxHashMap;
 use rustc_errors::{error_code, pluralize, struct_span_err, Applicability};
 use rustc_parse::validate_attr;
-use rustc_session::lint::builtin::{MISSING_ABI, PATTERNS_IN_FNS_WITHOUT_BODY};
+use rustc_session::lint::builtin::PATTERNS_IN_FNS_WITHOUT_BODY;
 use rustc_session::lint::{BuiltinLintDiagnostics, LintBuffer};
 use rustc_session::Session;
-use rustc_span::source_map::Spanned;
 use rustc_span::symbol::{kw, sym, Ident};
 use rustc_span::Span;
-use rustc_target::spec::abi;
 use std::mem;
 use std::ops::DerefMut;
 
@@ -34,6 +32,24 @@ enum SelfSemantic {
     No,
 }
 
+/// A syntactic context that disallows certain kinds of bounds (e.g., `?Trait` or `?const Trait`).
+#[derive(Clone, Copy)]
+enum BoundContext {
+    ImplTrait,
+    TraitBounds,
+    TraitObject,
+}
+
+impl BoundContext {
+    fn description(&self) -> &'static str {
+        match self {
+            Self::ImplTrait => "`impl Trait`",
+            Self::TraitBounds => "supertraits",
+            Self::TraitObject => "trait objects",
+        }
+    }
+}
+
 struct AstValidator<'a> {
     session: &'a Session,
 
@@ -43,8 +59,6 @@ struct AstValidator<'a> {
     /// Are we inside a trait impl?
     in_trait_impl: bool,
 
-    in_const_trait_impl: bool,
-
     has_proc_macro_decls: bool,
 
     /// Used to ban nested `impl Trait`, e.g., `impl Into<impl Debug>`.
@@ -52,7 +66,11 @@ struct AstValidator<'a> {
     /// e.g., `impl Iterator<Item = impl Debug>`.
     outer_impl_trait: Option<Span>,
 
-    is_tilde_const_allowed: bool,
+    /// Keeps track of the `BoundContext` as we recurse.
+    ///
+    /// This is used to forbid `?const Trait` bounds in, e.g.,
+    /// `impl Iterator<Item = Box<dyn ?const Trait>`.
+    bound_context: Option<BoundContext>,
 
     /// Used to ban `impl Trait` in path projections like `<impl Iterator>::Item`
     /// or `Foo::Bar<impl Trait>`
@@ -62,64 +80,20 @@ struct AstValidator<'a> {
     /// certain positions.
     is_assoc_ty_bound_banned: bool,
 
-    /// Used to allow `let` expressions in certain syntactic locations.
-    is_let_allowed: bool,
-
     lint_buffer: &'a mut LintBuffer,
 }
 
 impl<'a> AstValidator<'a> {
-    fn with_in_trait_impl(
-        &mut self,
-        is_in: bool,
-        constness: Option<Const>,
-        f: impl FnOnce(&mut Self),
-    ) {
+    fn with_in_trait_impl(&mut self, is_in: bool, f: impl FnOnce(&mut Self)) {
         let old = mem::replace(&mut self.in_trait_impl, is_in);
-        let old_const =
-            mem::replace(&mut self.in_const_trait_impl, matches!(constness, Some(Const::Yes(_))));
         f(self);
         self.in_trait_impl = old;
-        self.in_const_trait_impl = old_const;
     }
 
     fn with_banned_impl_trait(&mut self, f: impl FnOnce(&mut Self)) {
         let old = mem::replace(&mut self.is_impl_trait_banned, true);
         f(self);
         self.is_impl_trait_banned = old;
-    }
-
-    fn with_tilde_const_allowed(&mut self, f: impl FnOnce(&mut Self)) {
-        let old = mem::replace(&mut self.is_tilde_const_allowed, true);
-        f(self);
-        self.is_tilde_const_allowed = old;
-    }
-
-    fn with_banned_tilde_const(&mut self, f: impl FnOnce(&mut Self)) {
-        let old = mem::replace(&mut self.is_tilde_const_allowed, false);
-        f(self);
-        self.is_tilde_const_allowed = old;
-    }
-
-    fn with_let_allowed(&mut self, allowed: bool, f: impl FnOnce(&mut Self, bool)) {
-        let old = mem::replace(&mut self.is_let_allowed, allowed);
-        f(self, old);
-        self.is_let_allowed = old;
-    }
-
-    /// Emits an error banning the `let` expression provided in the given location.
-    fn ban_let_expr(&self, expr: &'a Expr) {
-        let sess = &self.session;
-        if sess.opts.unstable_features.is_nightly_build() {
-            sess.struct_span_err(expr.span, "`let` expressions are not supported here")
-                .note("only supported directly in conditions of `if`- and `while`-expressions")
-                .note("as well as when nested within `&&` and parenthesis in those conditions")
-                .emit();
-        } else {
-            sess.struct_span_err(expr.span, "expected expression, found statement (`let`)")
-                .note("variable declaration using `let` is a statement")
-                .emit();
-        }
     }
 
     fn with_banned_assoc_ty_bound(&mut self, f: impl FnOnce(&mut Self)) {
@@ -131,11 +105,17 @@ impl<'a> AstValidator<'a> {
     fn with_impl_trait(&mut self, outer: Option<Span>, f: impl FnOnce(&mut Self)) {
         let old = mem::replace(&mut self.outer_impl_trait, outer);
         if outer.is_some() {
-            self.with_banned_tilde_const(f);
+            self.with_bound_context(BoundContext::ImplTrait, |this| f(this));
         } else {
-            f(self);
+            f(self)
         }
         self.outer_impl_trait = old;
+    }
+
+    fn with_bound_context(&mut self, ctx: BoundContext, f: impl FnOnce(&mut Self)) {
+        let old = self.bound_context.replace(ctx);
+        f(self);
+        self.bound_context = old;
     }
 
     fn visit_assoc_ty_constraint_from_generic_args(&mut self, constraint: &'a AssocTyConstraint) {
@@ -159,7 +139,9 @@ impl<'a> AstValidator<'a> {
             TyKind::ImplTrait(..) => {
                 self.with_impl_trait(Some(t.span), |this| visit::walk_ty(this, t))
             }
-            TyKind::TraitObject(..) => self.with_banned_tilde_const(|this| visit::walk_ty(this, t)),
+            TyKind::TraitObject(..) => {
+                self.with_bound_context(BoundContext::TraitObject, |this| visit::walk_ty(this, t));
+            }
             TyKind::Path(ref qself, ref path) => {
                 // We allow these:
                 //  - `Option<impl Trait>`
@@ -845,10 +827,6 @@ impl<'a> AstValidator<'a> {
                     .emit();
                 });
                 self.check_late_bound_lifetime_defs(&bfty.generic_params);
-                if let Extern::Implicit = bfty.ext {
-                    let sig_span = self.session.source_map().next_point(ty.span.shrink_to_lo());
-                    self.maybe_lint_missing_abi(sig_span, ty.id);
-                }
             }
             TyKind::TraitObject(ref bounds, ..) => {
                 let mut any_lifetime_bounds = false;
@@ -897,26 +875,6 @@ impl<'a> AstValidator<'a> {
                 }
             }
             _ => {}
-        }
-    }
-
-    fn maybe_lint_missing_abi(&mut self, span: Span, id: NodeId) {
-        // FIXME(davidtwco): This is a hack to detect macros which produce spans of the
-        // call site which do not have a macro backtrace. See #61963.
-        let is_macro_callsite = self
-            .session
-            .source_map()
-            .span_to_snippet(span)
-            .map(|snippet| snippet.starts_with("#["))
-            .unwrap_or(true);
-        if !is_macro_callsite {
-            self.lint_buffer.buffer_lint_with_diagnostic(
-                MISSING_ABI,
-                id,
-                span,
-                "extern declarations without an explicit ABI are deprecated",
-                BuiltinLintDiagnostics::MissingAbi(span, abi::Abi::FALLBACK),
-            )
         }
     }
 }
@@ -1020,49 +978,20 @@ impl<'a> Visitor<'a> for AstValidator<'a> {
     }
 
     fn visit_expr(&mut self, expr: &'a Expr) {
-        self.with_let_allowed(false, |this, let_allowed| match &expr.kind {
-            ExprKind::If(cond, then, opt_else) => {
-                this.visit_block(then);
-                walk_list!(this, visit_expr, opt_else);
-                this.with_let_allowed(true, |this, _| this.visit_expr(cond));
-                return;
-            }
-            ExprKind::Let(..) if !let_allowed => this.ban_let_expr(expr),
-            ExprKind::LlvmInlineAsm(..) if !this.session.target.allow_asm => {
+        match &expr.kind {
+            ExprKind::LlvmInlineAsm(..) if !self.session.target.allow_asm => {
                 struct_span_err!(
-                    this.session,
+                    self.session,
                     expr.span,
                     E0472,
                     "llvm_asm! is unsupported on this target"
                 )
                 .emit();
             }
-            ExprKind::Match(expr, arms) => {
-                this.visit_expr(expr);
-                for arm in arms {
-                    this.visit_expr(&arm.body);
-                    this.visit_pat(&arm.pat);
-                    walk_list!(this, visit_attribute, &arm.attrs);
-                    if let Some(ref guard) = arm.guard {
-                        if let ExprKind::Let(_, ref expr, _) = guard.kind {
-                            this.with_let_allowed(true, |this, _| this.visit_expr(expr));
-                            return;
-                        }
-                    }
-                }
-            }
-            ExprKind::Paren(_) | ExprKind::Binary(Spanned { node: BinOpKind::And, .. }, ..) => {
-                this.with_let_allowed(let_allowed, |this, _| visit::walk_expr(this, expr));
-                return;
-            }
-            ExprKind::While(cond, then, opt_label) => {
-                walk_list!(this, visit_label, opt_label);
-                this.visit_block(then);
-                this.with_let_allowed(true, |this, _| this.visit_expr(cond));
-                return;
-            }
-            _ => visit::walk_expr(this, expr),
-        });
+            _ => {}
+        }
+
+        visit::walk_expr(self, expr);
     }
 
     fn visit_ty(&mut self, ty: &'a Ty) {
@@ -1100,13 +1029,13 @@ impl<'a> Visitor<'a> for AstValidator<'a> {
                 unsafety,
                 polarity,
                 defaultness: _,
-                constness,
-                ref generics,
+                constness: _,
+                generics: _,
                 of_trait: Some(ref t),
                 ref self_ty,
-                ref items,
+                items: _,
             }) => {
-                self.with_in_trait_impl(true, Some(constness), |this| {
+                self.with_in_trait_impl(true, |this| {
                     this.invalid_visibility(&item.vis, None);
                     if let TyKind::Err = self_ty.kind {
                         this.err_handler()
@@ -1129,17 +1058,7 @@ impl<'a> Visitor<'a> for AstValidator<'a> {
                         .emit();
                     }
 
-                    this.visit_vis(&item.vis);
-                    this.visit_ident(item.ident);
-                    if let Const::Yes(_) = constness {
-                        this.with_tilde_const_allowed(|this| this.visit_generics(generics));
-                    } else {
-                        this.visit_generics(generics);
-                    }
-                    this.visit_trait_ref(t);
-                    this.visit_ty(self_ty);
-
-                    walk_list!(this, visit_assoc_item, items, AssocCtxt::Impl);
+                    visit::walk_item(this, item);
                 });
                 return; // Avoid visiting again.
             }
@@ -1184,26 +1103,15 @@ impl<'a> Visitor<'a> for AstValidator<'a> {
                         .emit();
                 }
             }
-            ItemKind::Fn(box FnKind(def, ref sig, ref generics, ref body)) => {
+            ItemKind::Fn(box FnKind(def, _, _, ref body)) => {
                 self.check_defaultness(item.span, def);
 
                 if body.is_none() {
                     let msg = "free function without a body";
                     self.error_item_without_body(item.span, "function", msg, " { <body> }");
                 }
-                self.visit_vis(&item.vis);
-                self.visit_ident(item.ident);
-                if let Const::Yes(_) = sig.header.constness {
-                    self.with_tilde_const_allowed(|this| this.visit_generics(generics));
-                } else {
-                    self.visit_generics(generics);
-                }
-                let kind = FnKind::Fn(FnCtxt::Free, item.ident, sig, &item.vis, body.as_deref());
-                self.visit_fn(kind, item.span, item.id);
-                walk_list!(self, visit_attribute, &item.attrs);
-                return; // Avoid visiting again.
             }
-            ItemKind::ForeignMod(ForeignMod { abi, unsafety, .. }) => {
+            ItemKind::ForeignMod(ForeignMod { unsafety, .. }) => {
                 let old_item = mem::replace(&mut self.extern_mod, Some(item));
                 self.invalid_visibility(
                     &item.vis,
@@ -1211,9 +1119,6 @@ impl<'a> Visitor<'a> for AstValidator<'a> {
                 );
                 if let Unsafe::Yes(span) = unsafety {
                     self.err_handler().span_err(span, "extern block cannot be declared unsafe");
-                }
-                if abi.is_none() {
-                    self.maybe_lint_missing_abi(item.span, item.id);
                 }
                 visit::walk_item(self, item);
                 self.extern_mod = old_item;
@@ -1247,7 +1152,9 @@ impl<'a> Visitor<'a> for AstValidator<'a> {
                 self.visit_vis(&item.vis);
                 self.visit_ident(item.ident);
                 self.visit_generics(generics);
-                self.with_banned_tilde_const(|this| walk_list!(this, visit_param_bound, bounds));
+                self.with_bound_context(BoundContext::TraitBounds, |this| {
+                    walk_list!(this, visit_param_bound, bounds);
+                });
                 walk_list!(self, visit_assoc_item, trait_items, AssocCtxt::Trait);
                 walk_list!(self, visit_attribute, &item.attrs);
                 return;
@@ -1320,7 +1227,7 @@ impl<'a> Visitor<'a> for AstValidator<'a> {
             _ => {}
         }
 
-        visit::walk_item(self, item);
+        visit::walk_item(self, item)
     }
 
     fn visit_foreign_item(&mut self, fi: &'a ForeignItem) {
@@ -1379,7 +1286,7 @@ impl<'a> Visitor<'a> for AstValidator<'a> {
     }
 
     fn visit_generics(&mut self, generics: &'a Generics) {
-        let cg_defaults = self.session.features_untracked().unordered_const_ty_params();
+        let cg_defaults = self.session.features_untracked().const_generics_defaults;
 
         let mut prev_param_default = None;
         for param in &generics.params {
@@ -1467,17 +1374,15 @@ impl<'a> Visitor<'a> for AstValidator<'a> {
     fn visit_param_bound(&mut self, bound: &'a GenericBound) {
         match bound {
             GenericBound::Trait(_, TraitBoundModifier::MaybeConst) => {
-                if !self.is_tilde_const_allowed {
-                    self.err_handler()
-                        .struct_span_err(bound.span(), "`~const` is not allowed here")
-                        .note("only allowed on bounds on traits' associated types and functions, const fns, const impls and its associated functions")
-                        .emit();
+                if let Some(ctx) = self.bound_context {
+                    let msg = format!("`?const` is not permitted in {}", ctx.description());
+                    self.err_handler().span_err(bound.span(), &msg);
                 }
             }
 
             GenericBound::Trait(_, TraitBoundModifier::MaybeConstMaybe) => {
                 self.err_handler()
-                    .span_err(bound.span(), "`~const` and `?` are mutually exclusive");
+                    .span_err(bound.span(), "`?const` and `?` are mutually exclusive");
             }
 
             _ => {}
@@ -1554,17 +1459,6 @@ impl<'a> Visitor<'a> for AstValidator<'a> {
                 .emit();
         }
 
-        if let FnKind::Fn(
-            _,
-            _,
-            FnSig { span: sig_span, header: FnHeader { ext: Extern::Implicit, .. }, .. },
-            _,
-            _,
-        ) = fk
-        {
-            self.maybe_lint_missing_abi(*sig_span, id);
-        }
-
         // Functions without bodies cannot have patterns.
         if let FnKind::Fn(ctxt, _, sig, _, None) = fk {
             Self::check_decl_no_pat(&sig.decl, |span, ident, mut_ident| {
@@ -1605,10 +1499,6 @@ impl<'a> Visitor<'a> for AstValidator<'a> {
     }
 
     fn visit_assoc_item(&mut self, item: &'a AssocItem, ctxt: AssocCtxt) {
-        if self.session.contains_name(&item.attrs, sym::no_mangle) {
-            self.check_nomangle_item_asciionly(item.ident, item.span);
-        }
-
         if ctxt == AssocCtxt::Trait || !self.in_trait_impl {
             self.check_defaultness(item.span, item.kind.defaultness());
         }
@@ -1641,32 +1531,7 @@ impl<'a> Visitor<'a> for AstValidator<'a> {
             self.check_item_named(item.ident, "const");
         }
 
-        match item.kind {
-            AssocItemKind::TyAlias(box TyAliasKind(_, ref generics, ref bounds, ref ty))
-                if ctxt == AssocCtxt::Trait =>
-            {
-                self.visit_vis(&item.vis);
-                self.visit_ident(item.ident);
-                walk_list!(self, visit_attribute, &item.attrs);
-                self.with_tilde_const_allowed(|this| {
-                    this.visit_generics(generics);
-                    walk_list!(this, visit_param_bound, bounds);
-                });
-                walk_list!(self, visit_ty, ty);
-            }
-            AssocItemKind::Fn(box FnKind(_, ref sig, ref generics, ref body))
-                if self.in_const_trait_impl || ctxt == AssocCtxt::Trait =>
-            {
-                self.visit_vis(&item.vis);
-                self.visit_ident(item.ident);
-                self.with_tilde_const_allowed(|this| this.visit_generics(generics));
-                let kind =
-                    FnKind::Fn(FnCtxt::Assoc(ctxt), item.ident, sig, &item.vis, body.as_deref());
-                self.visit_fn(kind, item.span, item.id);
-            }
-            _ => self
-                .with_in_trait_impl(false, None, |this| visit::walk_assoc_item(this, item, ctxt)),
-        }
+        self.with_in_trait_impl(false, |this| visit::walk_assoc_item(this, item, ctxt));
     }
 }
 
@@ -1760,13 +1625,11 @@ pub fn check_crate(session: &Session, krate: &Crate, lints: &mut LintBuffer) -> 
         session,
         extern_mod: None,
         in_trait_impl: false,
-        in_const_trait_impl: false,
         has_proc_macro_decls: false,
         outer_impl_trait: None,
-        is_tilde_const_allowed: false,
+        bound_context: None,
         is_impl_trait_banned: false,
         is_assoc_ty_bound_banned: false,
-        is_let_allowed: false,
         lint_buffer: lints,
     };
     visit::walk_crate(&mut validator, krate);

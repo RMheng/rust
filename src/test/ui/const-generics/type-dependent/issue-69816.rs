@@ -1,4 +1,8 @@
 // run-pass
+// revisions: full min
+#![cfg_attr(full, feature(const_generics))]
+#![cfg_attr(full, allow(incomplete_features))]
+
 trait IterExt: Sized + Iterator {
     fn default_for_size<const N: usize>(self) -> [Self::Item; N]
     where

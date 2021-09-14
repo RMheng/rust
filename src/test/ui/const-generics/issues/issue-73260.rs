@@ -1,10 +1,11 @@
 // compile-flags: -Zsave-analysis
-#![feature(generic_const_exprs)]
+
+#![feature(const_generics)]
 #![allow(incomplete_features)]
 struct Arr<const N: usize>
-where
-    Assert::<{N < usize::MAX / 2}>: IsTrue,
-{}
+where Assert::<{N < usize::MAX / 2}>: IsTrue, //~ ERROR constant expression
+{
+}
 
 enum Assert<const CHECK: bool> {}
 

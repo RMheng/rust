@@ -3,6 +3,8 @@
 // Test that `ref` patterns may be used on both sides
 // of an `@` pattern according to NLL borrowck.
 
+#![feature(bindings_after_at)]
+
 fn main() {
     struct U; // Not copy!
 

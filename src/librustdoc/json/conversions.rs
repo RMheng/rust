@@ -127,7 +127,7 @@ impl FromWithTcx<clean::GenericArgs> for GenericArgs {
             },
             Parenthesized { inputs, output } => GenericArgs::Parenthesized {
                 inputs: inputs.into_iter().map(|a| a.into_tcx(tcx)).collect(),
-                output: output.map(|a| (*a).into_tcx(tcx)),
+                output: output.map(|a| a.into_tcx(tcx)),
             },
         }
     }
@@ -140,7 +140,6 @@ impl FromWithTcx<clean::GenericArg> for GenericArg {
             Lifetime(l) => GenericArg::Lifetime(l.0.to_string()),
             Type(t) => GenericArg::Type(t.into_tcx(tcx)),
             Const(c) => GenericArg::Const(c.into_tcx(tcx)),
-            Infer => GenericArg::Infer,
         }
     }
 }
@@ -569,18 +568,7 @@ impl FromWithTcx<clean::Variant> for Variant {
         use clean::Variant::*;
         match variant {
             CLike => Variant::Plain,
-            Tuple(fields) => Variant::Tuple(
-                fields
-                    .into_iter()
-                    .map(|f| {
-                        if let clean::StructFieldItem(ty) = *f.kind {
-                            ty.into_tcx(tcx)
-                        } else {
-                            unreachable!()
-                        }
-                    })
-                    .collect(),
-            ),
+            Tuple(t) => Variant::Tuple(t.into_iter().map(|x| x.into_tcx(tcx)).collect()),
             Struct(s) => Variant::Struct(ids(s.fields)),
         }
     }

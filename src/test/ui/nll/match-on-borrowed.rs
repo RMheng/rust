@@ -45,9 +45,8 @@ fn enum_example(mut e: E) {
         E::W => panic!(),
     };
     match e { // Don't know that E uses a tag for its discriminant
-        //~^ ERROR
         _ if false => (),
-        E::V(_, r) => (),
+        E::V(_, r) => (), //~ ERROR
         E::W => (),
     }
     x;
@@ -59,9 +58,8 @@ fn indirect_enum_example(mut f: &mut E) {
         E::W => panic!(),
     };
     match f { // Don't know that E uses a tag for its discriminant
-        //~^ ERROR
         _ if false => (),
-        E::V(_, r) => (),
+        E::V(_, r) => (), //~ ERROR
         E::W => (),
     }
     x;
@@ -79,8 +77,7 @@ fn match_on_muatbly_borrowed_ref(mut p: &bool) {
 fn match_on_borrowed(mut t: bool) {
     let x = &mut t;
     match t {
-        //~^ ERROR
-        true => (),
+        true => (), //~ ERROR
         false => (),
     }
     x;

@@ -527,12 +527,12 @@ impl<'a> TraitDef<'a> {
                     tokens: None,
                 },
                 attrs: Vec::new(),
-                kind: ast::AssocItemKind::TyAlias(Box::new(ast::TyAliasKind(
+                kind: ast::AssocItemKind::TyAlias(box ast::TyAliasKind(
                     ast::Defaultness::Final,
                     Generics::default(),
                     Vec::new(),
                     Some(type_def.to_ty(cx, self.span, type_ident, generics)),
-                ))),
+                )),
                 tokens: None,
             })
         });
@@ -677,6 +677,8 @@ impl<'a> TraitDef<'a> {
         let self_type = cx.ty_path(path);
 
         let attr = cx.attribute(cx.meta_word(self.span, sym::automatically_derived));
+        // Just mark it now since we know that it'll end up used downstream
+        cx.sess.mark_attr_used(&attr);
         let opt_trait_ref = Some(trait_ref);
         let unused_qual = {
             let word = rustc_ast::attr::mk_nested_word_item(Ident::new(
@@ -696,7 +698,7 @@ impl<'a> TraitDef<'a> {
             self.span,
             Ident::invalid(),
             a,
-            ast::ItemKind::Impl(Box::new(ast::ImplKind {
+            ast::ItemKind::Impl(box ast::ImplKind {
                 unsafety,
                 polarity: ast::ImplPolarity::Positive,
                 defaultness: ast::Defaultness::Final,
@@ -705,7 +707,7 @@ impl<'a> TraitDef<'a> {
                 of_trait: opt_trait_ref,
                 self_ty: self_type,
                 items: methods.into_iter().chain(associated_types).collect(),
-            })),
+            }),
         )
     }
 
@@ -938,12 +940,7 @@ impl<'a> MethodDef<'a> {
                 tokens: None,
             },
             ident: method_ident,
-            kind: ast::AssocItemKind::Fn(Box::new(ast::FnKind(
-                def,
-                sig,
-                fn_generics,
-                Some(body_block),
-            ))),
+            kind: ast::AssocItemKind::Fn(box ast::FnKind(def, sig, fn_generics, Some(body_block))),
             tokens: None,
         })
     }
@@ -1698,7 +1695,7 @@ where
 /// One or more fields: call the base case function on the first value (which depends on
 /// `use_fold`), and use that as the base case. Then perform `cs_fold` on the remainder of the
 /// fields.
-/// When the `substructure` is an `EnumNonMatchingCollapsed`, the result of `enum_nonmatch_f`
+/// When the `substructure` is a `EnumNonMatchingCollapsed`, the result of `enum_nonmatch_f`
 /// is returned. Statics may not be folded over.
 /// See `cs_op` in `partial_ord.rs` for a model example.
 pub fn cs_fold1<F, B>(

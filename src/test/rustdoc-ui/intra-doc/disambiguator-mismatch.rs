@@ -1,9 +1,7 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 //~^ NOTE lint level is defined
 pub enum S {}
-fn S() {}
 
-#[macro_export]
 macro_rules! m {
     () => {};
 }
@@ -42,12 +40,6 @@ trait T {}
 //~^ ERROR incompatible link kind for `m`
 //~| NOTE this link resolved
 //~| HELP add an exclamation mark
-
-/// Link to [m()]
-//~^ ERROR unresolved link to `m`
-//~| NOTE this link resolves to the macro `m`
-//~| HELP add an exclamation mark
-/// and to [m!()]
 
 /// Link to [const@s]
 //~^ ERROR incompatible link kind for `s`

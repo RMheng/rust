@@ -928,8 +928,6 @@ struct EmptyNeedle {
     end: usize,
     is_match_fw: bool,
     is_match_bw: bool,
-    // Needed in case of an empty haystack, see #85462
-    is_finished: bool,
 }
 
 impl<'a, 'b> StrSearcher<'a, 'b> {
@@ -943,7 +941,6 @@ impl<'a, 'b> StrSearcher<'a, 'b> {
                     end: haystack.len(),
                     is_match_fw: true,
                     is_match_bw: true,
-                    is_finished: false,
                 }),
             }
         } else {
@@ -969,19 +966,13 @@ unsafe impl<'a, 'b> Searcher<'a> for StrSearcher<'a, 'b> {
     fn next(&mut self) -> SearchStep {
         match self.searcher {
             StrSearcherImpl::Empty(ref mut searcher) => {
-                if searcher.is_finished {
-                    return SearchStep::Done;
-                }
                 // empty needle rejects every char and matches every empty string between them
                 let is_match = searcher.is_match_fw;
                 searcher.is_match_fw = !searcher.is_match_fw;
                 let pos = searcher.position;
                 match self.haystack[pos..].chars().next() {
                     _ if is_match => SearchStep::Match(pos, pos),
-                    None => {
-                        searcher.is_finished = true;
-                        SearchStep::Done
-                    }
+                    None => SearchStep::Done,
                     Some(ch) => {
                         searcher.position += ch.len_utf8();
                         SearchStep::Reject(pos, searcher.position)
@@ -1054,18 +1045,12 @@ unsafe impl<'a, 'b> ReverseSearcher<'a> for StrSearcher<'a, 'b> {
     fn next_back(&mut self) -> SearchStep {
         match self.searcher {
             StrSearcherImpl::Empty(ref mut searcher) => {
-                if searcher.is_finished {
-                    return SearchStep::Done;
-                }
                 let is_match = searcher.is_match_bw;
                 searcher.is_match_bw = !searcher.is_match_bw;
                 let end = searcher.end;
                 match self.haystack[..end].chars().next_back() {
                     _ if is_match => SearchStep::Match(end, end),
-                    None => {
-                        searcher.is_finished = true;
-                        SearchStep::Done
-                    }
+                    None => SearchStep::Done,
                     Some(ch) => {
                         searcher.end -= ch.len_utf8();
                         SearchStep::Reject(searcher.end, end)

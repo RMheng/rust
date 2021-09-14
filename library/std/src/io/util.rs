@@ -14,7 +14,6 @@ use crate::io::{
 /// the documentation of [`empty()`] for more details.
 #[stable(feature = "rust1", since = "1.0.0")]
 #[non_exhaustive]
-#[derive(Copy, Clone, Default)]
 pub struct Empty;
 
 /// Constructs a new handle to an empty reader.
@@ -173,7 +172,6 @@ impl fmt::Debug for Repeat {
 /// see the documentation of [`sink()`] for more details.
 #[stable(feature = "rust1", since = "1.0.0")]
 #[non_exhaustive]
-#[derive(Copy, Clone, Default)]
 pub struct Sink;
 
 /// Creates an instance of a writer which will successfully consume all data.

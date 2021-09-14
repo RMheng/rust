@@ -1,4 +1,8 @@
 // run-pass
+// revisions: full min
+
+#![cfg_attr(full, feature(const_generics))]
+#![cfg_attr(full, allow(incomplete_features))]
 
 trait Foo<const N: usize> {
     fn myfun(&self) -> usize;

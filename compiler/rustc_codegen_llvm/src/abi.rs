@@ -353,11 +353,7 @@ pub trait FnAbiLlvmExt<'tcx> {
 
 impl<'tcx> FnAbiLlvmExt<'tcx> for FnAbi<'tcx, Ty<'tcx>> {
     fn llvm_type(&self, cx: &CodegenCx<'ll, 'tcx>) -> &'ll Type {
-        // Ignore "extra" args from the call site for C variadic functions.
-        // Only the "fixed" args are part of the LLVM function signature.
-        let args = if self.c_variadic { &self.args[..self.fixed_count] } else { &self.args };
-
-        let args_capacity: usize = args.iter().map(|arg|
+        let args_capacity: usize = self.args.iter().map(|arg|
             if arg.pad.is_some() { 1 } else { 0 } +
             if let PassMode::Pair(_, _) = arg.mode { 2 } else { 1 }
         ).sum();
@@ -375,7 +371,7 @@ impl<'tcx> FnAbiLlvmExt<'tcx> for FnAbi<'tcx, Ty<'tcx>> {
             }
         };
 
-        for arg in args {
+        for arg in &self.args {
             // add padding
             if let Some(ty) = arg.pad {
                 llargument_tys.push(ty.llvm_type(cx));

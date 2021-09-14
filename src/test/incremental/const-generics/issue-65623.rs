@@ -1,4 +1,6 @@
 // revisions:rpass1
+#![feature(const_generics)]
+
 pub struct Foo<T, const N: usize>([T; 0]);
 
 impl<T, const N: usize> Foo<T, {N}> {

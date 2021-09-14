@@ -2,6 +2,8 @@
 
 // Test `Copy` bindings in the rhs of `@` patterns.
 
+#![feature(bindings_after_at)]
+
 #[derive(Copy, Clone)]
 struct C;
 

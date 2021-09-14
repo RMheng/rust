@@ -51,7 +51,7 @@ impl<'a, 'tcx> FindHirNodeVisitor<'a, 'tcx> {
 
     fn node_ty_contains_target(&self, hir_id: HirId) -> Option<Ty<'tcx>> {
         self.node_type_opt(hir_id).map(|ty| self.infcx.resolve_vars_if_possible(ty)).filter(|ty| {
-            ty.walk(self.infcx.tcx).any(|inner| {
+            ty.walk().any(|inner| {
                 inner == self.target
                     || match (inner.unpack(), self.target.unpack()) {
                         (GenericArgKind::Type(inner_ty), GenericArgKind::Type(target_ty)) => {
@@ -753,11 +753,23 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             if let (UnderspecifiedArgKind::Const { .. }, Some(parent_data)) =
                 (&arg_data.kind, &arg_data.parent)
             {
+                let has_impl_trait =
+                    self.tcx.generics_of(parent_data.def_id).params.iter().any(|param| {
+                        matches!(
+                            param.kind,
+                            ty::GenericParamDefKind::Type {
+                                synthetic: Some(
+                                    hir::SyntheticTyParamKind::ImplTrait
+                                        | hir::SyntheticTyParamKind::FromAttr,
+                                ),
+                                ..
+                            }
+                        )
+                    });
+
                 // (#83606): Do not emit a suggestion if the parent has an `impl Trait`
                 // as an argument otherwise it will cause the E0282 error.
-                if !self.tcx.generics_of(parent_data.def_id).has_impl_trait()
-                    || self.tcx.features().explicit_generic_args_with_impl_trait
-                {
+                if !has_impl_trait {
                     err.span_suggestion_verbose(
                         span,
                         "consider specifying the const argument",
@@ -802,7 +814,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             let borrow = typeck_results.borrow();
             if let Some((DefKind::AssocFn, did)) = borrow.type_dependent_def(e.hir_id) {
                 let generics = self.tcx.generics_of(did);
-                if !generics.params.is_empty() && !generics.has_impl_trait() {
+                if !generics.params.is_empty() {
                     err.span_suggestion_verbose(
                         segment.ident.span.shrink_to_hi(),
                         &format!(

@@ -1,4 +1,5 @@
 [package]
+authors = ["The Rust Project Developers"]
 name = "rustc_typeck"
 version = "0.0.0"
 edition = "2018"
@@ -26,4 +27,3 @@ rustc_index = { path = "../rustc_index" }
 rustc_infer = { path = "../rustc_infer" }
 rustc_trait_selection = { path = "../rustc_trait_selection" }
 rustc_ty_utils = { path = "../rustc_ty_utils" }
-rustc_lint = { path = "../rustc_lint" }

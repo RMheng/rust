@@ -1,4 +1,4 @@
-#![feature(generic_const_exprs)]
+#![feature(const_generics)]
 #![allow(incomplete_features)]
 
 fn bind<const N: usize>(value: [u8; N]) -> [u8; 3 + 4] {

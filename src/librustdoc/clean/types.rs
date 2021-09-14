@@ -168,7 +168,6 @@ impl ExternalCrate {
     crate fn location(
         &self,
         extern_url: Option<&str>,
-        extern_url_takes_precedence: bool,
         dst: &std::path::Path,
         tcx: TyCtxt<'_>,
     ) -> ExternalLocation {
@@ -190,10 +189,8 @@ impl ExternalCrate {
             return Local;
         }
 
-        if extern_url_takes_precedence {
-            if let Some(url) = extern_url {
-                return to_remote(url);
-            }
+        if let Some(url) = extern_url {
+            return to_remote(url);
         }
 
         // Failing that, see if there's an attribute specifying where to find this
@@ -205,7 +202,6 @@ impl ExternalCrate {
             .filter_map(|a| a.value_str())
             .map(to_remote)
             .next()
-            .or(extern_url.map(to_remote)) // NOTE: only matters if `extern_url_takes_precedence` is false
             .unwrap_or(Unknown) // Well, at least we tried.
     }
 
@@ -231,7 +227,7 @@ impl ExternalCrate {
         if root.is_local() {
             tcx.hir()
                 .krate()
-                .module()
+                .item
                 .item_ids
                 .iter()
                 .filter_map(|&id| {
@@ -297,7 +293,7 @@ impl ExternalCrate {
         if root.is_local() {
             tcx.hir()
                 .krate()
-                .module()
+                .item
                 .item_ids
                 .iter()
                 .filter_map(|&id| {
@@ -347,7 +343,7 @@ crate struct Item {
 rustc_data_structures::static_assert_size!(Item, 56);
 
 crate fn rustc_span(def_id: DefId, tcx: TyCtxt<'_>) -> Span {
-    Span::new(def_id.as_local().map_or_else(
+    Span::from_rustc_span(def_id.as_local().map_or_else(
         || tcx.def_span(def_id),
         |local| {
             let hir = tcx.hir();
@@ -420,7 +416,7 @@ impl Item {
             def_id,
             name,
             kind,
-            Box::new(ast_attrs.clean(cx)),
+            box ast_attrs.clean(cx),
             cx,
             ast_attrs.cfg(cx.sess()),
         )
@@ -438,7 +434,7 @@ impl Item {
 
         Item {
             def_id: def_id.into(),
-            kind: Box::new(kind),
+            kind: box kind,
             name,
             attrs,
             visibility: cx.tcx.visibility(def_id).clean(cx),
@@ -715,7 +711,6 @@ impl ItemKind {
             StructItem(s) => s.fields.iter(),
             UnionItem(u) => u.fields.iter(),
             VariantItem(Variant::Struct(v)) => v.fields.iter(),
-            VariantItem(Variant::Tuple(v)) => v.iter(),
             EnumItem(e) => e.variants.iter(),
             TraitItem(t) => t.items.iter(),
             ImplItem(i) => i.items.iter(),
@@ -1619,7 +1614,7 @@ impl Type {
 impl Type {
     fn inner_def_id(&self, cache: Option<&Cache>) -> Option<DefId> {
         let t: PrimitiveType = match *self {
-            ResolvedPath { did, .. } => return Some(did),
+            ResolvedPath { did, .. } => return Some(did.into()),
             DynTrait(ref bounds, _) => return bounds[0].trait_.inner_def_id(cache),
             Primitive(p) => return cache.and_then(|c| c.primitive_locations.get(&p).cloned()),
             BorrowedRef { type_: box Generic(..), .. } => PrimitiveType::Reference,
@@ -1938,21 +1933,20 @@ crate struct Enum {
 #[derive(Clone, Debug)]
 crate enum Variant {
     CLike,
-    Tuple(Vec<Item>),
+    Tuple(Vec<Type>),
     Struct(VariantStruct),
 }
 
-/// Small wrapper around [`rustc_span::Span`] that adds helper methods
+/// Small wrapper around [`rustc_span::Span]` that adds helper methods
 /// and enforces calling [`rustc_span::Span::source_callsite()`].
 #[derive(Copy, Clone, Debug)]
 crate struct Span(rustc_span::Span);
 
 impl Span {
-    /// Wraps a [`rustc_span::Span`]. In case this span is the result of a macro expansion, the
-    /// span will be updated to point to the macro invocation instead of the macro definition.
-    ///
-    /// (See rust-lang/rust#39726)
-    crate fn new(sp: rustc_span::Span) -> Self {
+    crate fn from_rustc_span(sp: rustc_span::Span) -> Self {
+        // Get the macro invocation instead of the definition,
+        // in case the span is result of a macro expansion.
+        // (See rust-lang/rust#39726)
         Self(sp.source_callsite())
     }
 
@@ -2013,30 +2007,19 @@ crate enum GenericArg {
     Lifetime(Lifetime),
     Type(Type),
     Const(Constant),
-    Infer,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 crate enum GenericArgs {
     AngleBracketed { args: Vec<GenericArg>, bindings: Vec<TypeBinding> },
-    Parenthesized { inputs: Vec<Type>, output: Option<Box<Type>> },
+    Parenthesized { inputs: Vec<Type>, output: Option<Type> },
 }
-
-// `GenericArgs` is in every `PathSegment`, so its size can significantly
-// affect rustdoc's memory usage.
-#[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
-rustc_data_structures::static_assert_size!(GenericArgs, 56);
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 crate struct PathSegment {
     crate name: Symbol,
     crate args: GenericArgs,
 }
-
-// `PathSegment` usually occurs multiple times in every `Path`, so its size can
-// significantly affect rustdoc's memory usage.
-#[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
-rustc_data_structures::static_assert_size!(PathSegment, 64);
 
 #[derive(Clone, Debug)]
 crate struct Typedef {

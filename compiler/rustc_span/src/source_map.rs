@@ -100,7 +100,7 @@ pub trait FileLoader {
     /// Query the existence of a file.
     fn file_exists(&self, path: &Path) -> bool;
 
-    /// Read the contents of a UTF-8 file into memory.
+    /// Read the contents of an UTF-8 file into memory.
     fn read_file(&self, path: &Path) -> io::Result<String>;
 }
 
@@ -427,7 +427,7 @@ impl SourceMap {
         }
     }
 
-    fn span_to_string(&self, sp: Span, filename_display_pref: FileNameDisplayPreference) -> String {
+    fn span_to_string(&self, sp: Span, prefer_local: bool) -> String {
         if self.files.borrow().source_files.is_empty() || sp.is_dummy() {
             return "no-location".to_string();
         }
@@ -436,7 +436,7 @@ impl SourceMap {
         let hi = self.lookup_char_pos(sp.hi());
         format!(
             "{}:{}:{}: {}:{}",
-            lo.file.name.display(filename_display_pref),
+            if prefer_local { lo.file.name.prefer_local() } else { lo.file.name.prefer_remapped() },
             lo.line,
             lo.col.to_usize() + 1,
             hi.line,
@@ -446,22 +446,18 @@ impl SourceMap {
 
     /// Format the span location suitable for embedding in build artifacts
     pub fn span_to_embeddable_string(&self, sp: Span) -> String {
-        self.span_to_string(sp, FileNameDisplayPreference::Remapped)
+        self.span_to_string(sp, false)
     }
 
     /// Format the span location to be printed in diagnostics. Must not be emitted
     /// to build artifacts as this may leak local file paths. Use span_to_embeddable_string
     /// for string suitable for embedding.
     pub fn span_to_diagnostic_string(&self, sp: Span) -> String {
-        self.span_to_string(sp, self.path_mapping.filename_display_for_diagnostics)
+        self.span_to_string(sp, true)
     }
 
     pub fn span_to_filename(&self, sp: Span) -> FileName {
         self.lookup_char_pos(sp.lo()).file.name.clone()
-    }
-
-    pub fn filename_for_diagnostics<'a>(&self, filename: &'a FileName) -> FileNameDisplay<'a> {
-        filename.display(self.path_mapping.filename_display_for_diagnostics)
     }
 
     pub fn is_multiline(&self, sp: Span) -> bool {
@@ -569,17 +565,6 @@ impl SourceMap {
                 Err(SpanSnippetError::SourceNotAvailable { filename: local_begin.sf.name.clone() })
             }
         }
-    }
-
-    /// Returns whether or not this span points into a file
-    /// in the current crate. This may be `false` for spans
-    /// produced by a macro expansion, or for spans associated
-    /// with the definition of an item in a foreign crate
-    pub fn is_local_span(&self, sp: Span) -> bool {
-        let local_begin = self.lookup_byte_offset(sp.lo());
-        let local_end = self.lookup_byte_offset(sp.hi());
-        // This might be a weird span that covers multiple files
-        local_begin.sf.src.is_some() && local_end.sf.src.is_some()
     }
 
     /// Returns the source snippet as `String` corresponding to the given `Span`.
@@ -997,13 +982,15 @@ impl SourceMap {
         None
     }
     pub fn ensure_source_file_source_present(&self, source_file: Lrc<SourceFile>) -> bool {
-        source_file.add_external_src(|| {
-            match source_file.name {
-                FileName::Real(ref name) if let Some(local_path) = name.local_path() => {
+        source_file.add_external_src(|| match source_file.name {
+            FileName::Real(ref name) => {
+                if let Some(local_path) = name.local_path() {
                     self.file_loader.read_file(local_path).ok()
+                } else {
+                    None
                 }
-                _ => None,
             }
+            _ => None,
         })
     }
 
@@ -1017,22 +1004,15 @@ impl SourceMap {
 #[derive(Clone)]
 pub struct FilePathMapping {
     mapping: Vec<(PathBuf, PathBuf)>,
-    filename_display_for_diagnostics: FileNameDisplayPreference,
 }
 
 impl FilePathMapping {
     pub fn empty() -> FilePathMapping {
-        FilePathMapping::new(Vec::new())
+        FilePathMapping { mapping: vec![] }
     }
 
     pub fn new(mapping: Vec<(PathBuf, PathBuf)>) -> FilePathMapping {
-        let filename_display_for_diagnostics = if mapping.is_empty() {
-            FileNameDisplayPreference::Local
-        } else {
-            FileNameDisplayPreference::Remapped
-        };
-
-        FilePathMapping { mapping, filename_display_for_diagnostics }
+        FilePathMapping { mapping }
     }
 
     /// Applies any path prefix substitution as defined by the mapping.
@@ -1053,19 +1033,22 @@ impl FilePathMapping {
 
     fn map_filename_prefix(&self, file: &FileName) -> (FileName, bool) {
         match file {
-            FileName::Real(realfile) if let RealFileName::LocalPath(local_path) = realfile => {
-                let (mapped_path, mapped) = self.map_prefix(local_path.to_path_buf());
-                let realfile = if mapped {
-                    RealFileName::Remapped {
-                        local_path: Some(local_path.clone()),
-                        virtual_name: mapped_path,
-                    }
+            FileName::Real(realfile) => {
+                if let RealFileName::LocalPath(local_path) = realfile {
+                    let (mapped_path, mapped) = self.map_prefix(local_path.to_path_buf());
+                    let realfile = if mapped {
+                        RealFileName::Remapped {
+                            local_path: Some(local_path.clone()),
+                            virtual_name: mapped_path,
+                        }
+                    } else {
+                        realfile.clone()
+                    };
+                    (FileName::Real(realfile), mapped)
                 } else {
-                    realfile.clone()
-                };
-                (FileName::Real(realfile), mapped)
+                    unreachable!("attempted to remap an already remapped filename");
+                }
             }
-            FileName::Real(_) => unreachable!("attempted to remap an already remapped filename"),
             other => (other.clone(), false),
         }
     }

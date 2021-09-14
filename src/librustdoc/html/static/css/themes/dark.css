@@ -177,9 +177,6 @@ nav.main .separator {
 a {
 	color: #ddd;
 }
-body.source .example-wrap pre.rust a {
-	background: #333;
-}
 
 .docblock:not(.type-decl) a:not(.srclink):not(.test-arrow),
 .docblock-short a:not(.srclink):not(.test-arrow), .item-info a,
@@ -195,11 +192,6 @@ details.rustdoc-toggle > summary.hideme > span,
 details.rustdoc-toggle > summary::before,
 details.undocumented > summary::before {
 	color: #999;
-}
-
-details.rustdoc-toggle > summary::before,
-details.undocumented > summary::before {
-	filter: invert(100%);
 }
 
 #crate-search {

@@ -17,10 +17,7 @@ use rustc_span::symbol::sym;
 use super::cache::{build_index, ExternalLocation};
 use super::print_item::{full_path, item_path, print_item};
 use super::write_shared::write_shared;
-use super::{
-    collect_spans_and_sources, print_sidebar, settings, AllTypes, LinkFromSrc, NameDoc, StylePath,
-    BASIC_KEYWORDS,
-};
+use super::{print_sidebar, settings, AllTypes, NameDoc, StylePath, BASIC_KEYWORDS};
 
 use crate::clean;
 use crate::clean::ExternalCrate;
@@ -49,7 +46,7 @@ crate struct Context<'tcx> {
     pub(crate) current: Vec<String>,
     /// The current destination folder of where HTML artifacts should be placed.
     /// This changes as the context descends into the module hierarchy.
-    crate dst: PathBuf,
+    pub(super) dst: PathBuf,
     /// A flag, which when `true`, will render pages which redirect to the
     /// real location of an item. This is used to allow external links to
     /// publicly reused items to redirect to the right location.
@@ -61,16 +58,22 @@ crate struct Context<'tcx> {
     /// Issue for improving the situation: [#82381][]
     ///
     /// [#82381]: https://github.com/rust-lang/rust/issues/82381
-    crate shared: Rc<SharedContext<'tcx>>,
-    /// This flag indicates whether `[src]` links should be generated or not. If
-    /// the source files are present in the html rendering, then this will be
-    /// `true`.
-    crate include_sources: bool,
+    pub(super) shared: Rc<SharedContext<'tcx>>,
+    /// The [`Cache`] used during rendering.
+    ///
+    /// Ideally the cache would be in [`SharedContext`], but it's mutated
+    /// between when the `SharedContext` is created and when `Context`
+    /// is created, so more refactoring would be needed.
+    ///
+    /// It's immutable once in `Context`, so it's not as bad that it's not in
+    /// `SharedContext`.
+    // FIXME: move `cache` to `SharedContext`
+    pub(super) cache: Rc<Cache>,
 }
 
 // `Context` is cloned a lot, so we don't want the size to grow unexpectedly.
 #[cfg(target_arch = "x86_64")]
-rustc_data_structures::static_assert_size!(Context<'_>, 104);
+rustc_data_structures::static_assert_size!(Context<'_>, 112);
 
 /// Shared mutable state used in [`Context`] and elsewhere.
 crate struct SharedContext<'tcx> {
@@ -81,6 +84,10 @@ crate struct SharedContext<'tcx> {
     /// This describes the layout of each page, and is not modified after
     /// creation of the context (contains info like the favicon and added html).
     crate layout: layout::Layout,
+    /// This flag indicates whether `[src]` links should be generated or not. If
+    /// the source files are present in the html rendering, then this will be
+    /// `true`.
+    crate include_sources: bool,
     /// The local file sources we've emitted and their respective url-paths.
     crate local_sources: FxHashMap<PathBuf, String>,
     /// Show the memory layout of types in the docs.
@@ -118,12 +125,6 @@ crate struct SharedContext<'tcx> {
     redirections: Option<RefCell<FxHashMap<String, String>>>,
 
     pub(crate) templates: tera::Tera,
-
-    /// Correspondance map used to link types used in the source code pages to allow to click on
-    /// links to jump to the type's definition.
-    crate span_correspondance_map: FxHashMap<rustc_span::Span, LinkFromSrc>,
-    /// The [`Cache`] used during rendering.
-    crate cache: Cache,
 }
 
 impl SharedContext<'_> {
@@ -154,7 +155,7 @@ impl<'tcx> Context<'tcx> {
     }
 
     pub(crate) fn cache(&self) -> &Cache {
-        &self.shared.cache
+        &self.cache
     }
 
     pub(super) fn sess(&self) -> &'tcx Session {
@@ -229,7 +230,7 @@ impl<'tcx> Context<'tcx> {
                 &self.shared.style_files,
             )
         } else {
-            if let Some(&(ref names, ty)) = self.cache().paths.get(&it.def_id.expect_def_id()) {
+            if let Some(&(ref names, ty)) = self.cache.paths.get(&it.def_id.expect_def_id()) {
                 let mut path = String::new();
                 for name in &names[..names.len() - 1] {
                     path.push_str(name);
@@ -292,19 +293,15 @@ impl<'tcx> Context<'tcx> {
     /// may happen, for example, with externally inlined items where the source
     /// of their crate documentation isn't known.
     pub(super) fn src_href(&self, item: &clean::Item) -> Option<String> {
-        self.href_from_span(item.span(self.tcx()))
-    }
-
-    crate fn href_from_span(&self, span: clean::Span) -> Option<String> {
-        if span.is_dummy() {
+        if item.span(self.tcx()).is_dummy() {
             return None;
         }
         let mut root = self.root_path();
         let mut path = String::new();
-        let cnum = span.cnum(self.sess());
+        let cnum = item.span(self.tcx()).cnum(self.sess());
 
         // We can safely ignore synthetic `SourceFile`s.
-        let file = match span.filename(self.sess()) {
+        let file = match item.span(self.tcx()).filename(self.sess()) {
             FileName::Real(ref path) => path.local_path_if_available().to_path_buf(),
             _ => return None,
         };
@@ -318,7 +315,7 @@ impl<'tcx> Context<'tcx> {
                 return None;
             }
         } else {
-            let (krate, src_root) = match *self.cache().extern_locations.get(&cnum)? {
+            let (krate, src_root) = match *self.cache.extern_locations.get(&cnum)? {
                 ExternalLocation::Local => {
                     let e = ExternalCrate { crate_num: cnum };
                     (e.name(self.tcx()), e.src_root(self.tcx()))
@@ -342,8 +339,8 @@ impl<'tcx> Context<'tcx> {
             (&*symbol, &path)
         };
 
-        let loline = span.lo(self.sess()).line;
-        let hiline = span.hi(self.sess()).line;
+        let loline = item.span(self.tcx()).lo(self.sess()).line;
+        let hiline = item.span(self.tcx()).hi(self.sess()).line;
         let lines =
             if loline == hiline { loline.to_string() } else { format!("{}-{}", loline, hiline) };
         Some(format!(
@@ -365,9 +362,9 @@ impl<'tcx> FormatRenderer<'tcx> for Context<'tcx> {
     const RUN_ON_MODULE: bool = true;
 
     fn init(
-        krate: clean::Crate,
+        mut krate: clean::Crate,
         options: RenderOptions,
-        cache: Cache,
+        mut cache: Cache,
         tcx: TyCtxt<'tcx>,
     ) -> Result<(Self, clean::Crate), Error> {
         // need to save a copy of the options for rendering the index page
@@ -388,7 +385,6 @@ impl<'tcx> FormatRenderer<'tcx> for Context<'tcx> {
             unstable_features,
             generate_redirect_map,
             show_type_layout,
-            generate_link_to_definition,
             ..
         } = options;
 
@@ -448,21 +444,13 @@ impl<'tcx> FormatRenderer<'tcx> for Context<'tcx> {
                 _ => {}
             }
         }
-
-        let (mut krate, local_sources, matches) = collect_spans_and_sources(
-            tcx,
-            krate,
-            &src_root,
-            include_sources,
-            generate_link_to_definition,
-        );
-
         let (sender, receiver) = channel();
         let mut scx = SharedContext {
             tcx,
             collapsed: krate.collapsed,
             src_root,
-            local_sources,
+            include_sources,
+            local_sources: Default::default(),
             issue_tracker_base_url,
             layout,
             created_dirs: Default::default(),
@@ -478,8 +466,6 @@ impl<'tcx> FormatRenderer<'tcx> for Context<'tcx> {
             redirections: if generate_redirect_map { Some(Default::default()) } else { None },
             show_type_layout,
             templates,
-            span_correspondance_map: matches,
-            cache,
         };
 
         // Add the default themes to the `Vec` of stylepaths
@@ -497,6 +483,12 @@ impl<'tcx> FormatRenderer<'tcx> for Context<'tcx> {
 
         let dst = output;
         scx.ensure_dir(&dst)?;
+        if emit_crate {
+            krate = sources::render(&dst, &mut scx, krate)?;
+        }
+
+        // Build our search index
+        let index = build_index(&krate, &mut cache, tcx);
 
         let mut cx = Context {
             current: Vec::new(),
@@ -504,15 +496,8 @@ impl<'tcx> FormatRenderer<'tcx> for Context<'tcx> {
             render_redirect_pages: false,
             id_map: RefCell::new(id_map),
             shared: Rc::new(scx),
-            include_sources,
+            cache: Rc::new(cache),
         };
-
-        if emit_crate {
-            krate = sources::render(&mut cx, krate)?;
-        }
-
-        // Build our search index
-        let index = build_index(&krate, &mut Rc::get_mut(&mut cx.shared).unwrap().cache, tcx);
 
         // Write shared runs within a flock; disable thread dispatching of IO temporarily.
         Rc::get_mut(&mut cx.shared).unwrap().fs.set_sync_only(true);
@@ -528,7 +513,7 @@ impl<'tcx> FormatRenderer<'tcx> for Context<'tcx> {
             render_redirect_pages: self.render_redirect_pages,
             id_map: RefCell::new(IdMap::new()),
             shared: Rc::clone(&self.shared),
-            include_sources: self.include_sources,
+            cache: Rc::clone(&self.cache),
         }
     }
 
@@ -552,7 +537,7 @@ impl<'tcx> FormatRenderer<'tcx> for Context<'tcx> {
             extra_scripts: &[],
             static_extra_scripts: &[],
         };
-        let sidebar = if let Some(ref version) = self.shared.cache.crate_version {
+        let sidebar = if let Some(ref version) = self.cache.crate_version {
             format!(
                 "<h2 class=\"location\">Crate {}</h2>\
                      <div class=\"block version\">\
@@ -713,7 +698,7 @@ impl<'tcx> FormatRenderer<'tcx> for Context<'tcx> {
     }
 
     fn cache(&self) -> &Cache {
-        &self.shared.cache
+        &self.cache
     }
 }
 

@@ -5,11 +5,4 @@
 #[no_mangle]
 pub extern "C" fn SparklingGenerationForeignFunctionInterface() {} // OK
 
-pub struct Foo;
-
-impl Foo {
-    #[no_mangle]
-    pub extern "C" fn SparklingGenerationForeignFunctionInterface() {} // OK
-}
-
 fn main() {}

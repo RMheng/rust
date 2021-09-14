@@ -3,8 +3,9 @@
 //! which are available for use externally when compiled as a library.
 
 use rustc_data_structures::fx::FxHashMap;
+use rustc_hir::HirId;
 use rustc_macros::HashStable;
-use rustc_span::def_id::LocalDefId;
+use std::fmt;
 use std::hash::Hash;
 
 /// Represents the levels of accessibility an item can have.
@@ -26,8 +27,8 @@ pub enum AccessLevel {
 }
 
 /// Holds a map of accessibility levels for reachable HIR nodes.
-#[derive(Debug)]
-pub struct AccessLevels<Id = LocalDefId> {
+#[derive(Clone)]
+pub struct AccessLevels<Id = HirId> {
     pub map: FxHashMap<Id, AccessLevel>,
 }
 
@@ -48,8 +49,14 @@ impl<Id: Hash + Eq> AccessLevels<Id> {
     }
 }
 
-impl<Id> Default for AccessLevels<Id> {
+impl<Id: Hash + Eq> Default for AccessLevels<Id> {
     fn default() -> Self {
         AccessLevels { map: Default::default() }
+    }
+}
+
+impl<Id: Hash + Eq + fmt::Debug> fmt::Debug for AccessLevels<Id> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.map, f)
     }
 }

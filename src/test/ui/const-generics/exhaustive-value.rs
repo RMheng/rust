@@ -1,3 +1,7 @@
+// revisions: full min
+#![cfg_attr(full, feature(const_generics))]
+#![cfg_attr(full, allow(incomplete_features))]
+
 trait Foo<const N: u8> {
     fn test() {}
 }

@@ -61,7 +61,13 @@ cfg_if::cfg_if! {
 pub fn setsockopt<T>(sock: &Socket, opt: c_int, val: c_int, payload: T) -> io::Result<()> {
     unsafe {
         let payload = &payload as *const T as *const c_void;
-        cvt(c::setsockopt(sock.as_raw(), opt, val, payload, mem::size_of::<T>() as c::socklen_t))?;
+        cvt(c::setsockopt(
+            *sock.as_inner(),
+            opt,
+            val,
+            payload,
+            mem::size_of::<T>() as c::socklen_t,
+        ))?;
         Ok(())
     }
 }
@@ -70,7 +76,7 @@ pub fn getsockopt<T: Copy>(sock: &Socket, opt: c_int, val: c_int) -> io::Result<
     unsafe {
         let mut slot: T = mem::zeroed();
         let mut len = mem::size_of::<T>() as c::socklen_t;
-        cvt(c::getsockopt(sock.as_raw(), opt, val, &mut slot as *mut _ as *mut _, &mut len))?;
+        cvt(c::getsockopt(*sock.as_inner(), opt, val, &mut slot as *mut _ as *mut _, &mut len))?;
         assert_eq!(len as usize, mem::size_of::<T>());
         Ok(slot)
     }
@@ -211,7 +217,7 @@ impl TcpStream {
         let sock = Socket::new(addr, c::SOCK_STREAM)?;
 
         let (addrp, len) = addr.into_inner();
-        cvt_r(|| unsafe { c::connect(sock.as_raw(), addrp, len) })?;
+        cvt_r(|| unsafe { c::connect(*sock.as_inner(), addrp, len) })?;
         Ok(TcpStream { inner: sock })
     }
 
@@ -267,7 +273,7 @@ impl TcpStream {
     pub fn write(&self, buf: &[u8]) -> io::Result<usize> {
         let len = cmp::min(buf.len(), <wrlen_t>::MAX as usize) as wrlen_t;
         let ret = cvt(unsafe {
-            c::send(self.inner.as_raw(), buf.as_ptr() as *const c_void, len, MSG_NOSIGNAL)
+            c::send(*self.inner.as_inner(), buf.as_ptr() as *const c_void, len, MSG_NOSIGNAL)
         })?;
         Ok(ret as usize)
     }
@@ -282,11 +288,11 @@ impl TcpStream {
     }
 
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
-        sockname(|buf, len| unsafe { c::getpeername(self.inner.as_raw(), buf, len) })
+        sockname(|buf, len| unsafe { c::getpeername(*self.inner.as_inner(), buf, len) })
     }
 
     pub fn socket_addr(&self) -> io::Result<SocketAddr> {
-        sockname(|buf, len| unsafe { c::getsockname(self.inner.as_raw(), buf, len) })
+        sockname(|buf, len| unsafe { c::getsockname(*self.inner.as_inner(), buf, len) })
     }
 
     pub fn shutdown(&self, how: Shutdown) -> io::Result<()> {
@@ -295,14 +301,6 @@ impl TcpStream {
 
     pub fn duplicate(&self) -> io::Result<TcpStream> {
         self.inner.duplicate().map(|s| TcpStream { inner: s })
-    }
-
-    pub fn set_linger(&self, linger: Option<Duration>) -> io::Result<()> {
-        self.inner.set_linger(linger)
-    }
-
-    pub fn linger(&self) -> io::Result<Option<Duration>> {
-        self.inner.linger()
     }
 
     pub fn set_nodelay(&self, nodelay: bool) -> io::Result<()> {
@@ -350,7 +348,7 @@ impl fmt::Debug for TcpStream {
         }
 
         let name = if cfg!(windows) { "socket" } else { "fd" };
-        res.field(name, &self.inner.as_raw()).finish()
+        res.field(name, &self.inner.as_inner()).finish()
     }
 }
 
@@ -382,10 +380,10 @@ impl TcpListener {
 
         // Bind our new socket
         let (addrp, len) = addr.into_inner();
-        cvt(unsafe { c::bind(sock.as_raw(), addrp, len as _) })?;
+        cvt(unsafe { c::bind(*sock.as_inner(), addrp, len as _) })?;
 
         // Start listening
-        cvt(unsafe { c::listen(sock.as_raw(), 128) })?;
+        cvt(unsafe { c::listen(*sock.as_inner(), 128) })?;
         Ok(TcpListener { inner: sock })
     }
 
@@ -398,7 +396,7 @@ impl TcpListener {
     }
 
     pub fn socket_addr(&self) -> io::Result<SocketAddr> {
-        sockname(|buf, len| unsafe { c::getsockname(self.inner.as_raw(), buf, len) })
+        sockname(|buf, len| unsafe { c::getsockname(*self.inner.as_inner(), buf, len) })
     }
 
     pub fn accept(&self) -> io::Result<(TcpStream, SocketAddr)> {
@@ -455,7 +453,7 @@ impl fmt::Debug for TcpListener {
         }
 
         let name = if cfg!(windows) { "socket" } else { "fd" };
-        res.field(name, &self.inner.as_raw()).finish()
+        res.field(name, &self.inner.as_inner()).finish()
     }
 }
 
@@ -475,7 +473,7 @@ impl UdpSocket {
 
         let sock = Socket::new(addr, c::SOCK_DGRAM)?;
         let (addrp, len) = addr.into_inner();
-        cvt(unsafe { c::bind(sock.as_raw(), addrp, len as _) })?;
+        cvt(unsafe { c::bind(*sock.as_inner(), addrp, len as _) })?;
         Ok(UdpSocket { inner: sock })
     }
 
@@ -488,11 +486,11 @@ impl UdpSocket {
     }
 
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
-        sockname(|buf, len| unsafe { c::getpeername(self.inner.as_raw(), buf, len) })
+        sockname(|buf, len| unsafe { c::getpeername(*self.inner.as_inner(), buf, len) })
     }
 
     pub fn socket_addr(&self) -> io::Result<SocketAddr> {
-        sockname(|buf, len| unsafe { c::getsockname(self.inner.as_raw(), buf, len) })
+        sockname(|buf, len| unsafe { c::getsockname(*self.inner.as_inner(), buf, len) })
     }
 
     pub fn recv_from(&self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
@@ -508,7 +506,7 @@ impl UdpSocket {
         let (dstp, dstlen) = dst.into_inner();
         let ret = cvt(unsafe {
             c::sendto(
-                self.inner.as_raw(),
+                *self.inner.as_inner(),
                 buf.as_ptr() as *const c_void,
                 len,
                 MSG_NOSIGNAL,
@@ -645,14 +643,14 @@ impl UdpSocket {
     pub fn send(&self, buf: &[u8]) -> io::Result<usize> {
         let len = cmp::min(buf.len(), <wrlen_t>::MAX as usize) as wrlen_t;
         let ret = cvt(unsafe {
-            c::send(self.inner.as_raw(), buf.as_ptr() as *const c_void, len, MSG_NOSIGNAL)
+            c::send(*self.inner.as_inner(), buf.as_ptr() as *const c_void, len, MSG_NOSIGNAL)
         })?;
         Ok(ret as usize)
     }
 
     pub fn connect(&self, addr: io::Result<&SocketAddr>) -> io::Result<()> {
         let (addrp, len) = addr?.into_inner();
-        cvt_r(|| unsafe { c::connect(self.inner.as_raw(), addrp, len) }).map(drop)
+        cvt_r(|| unsafe { c::connect(*self.inner.as_inner(), addrp, len) }).map(drop)
     }
 }
 
@@ -671,6 +669,6 @@ impl fmt::Debug for UdpSocket {
         }
 
         let name = if cfg!(windows) { "socket" } else { "fd" };
-        res.field(name, &self.inner.as_raw()).finish()
+        res.field(name, &self.inner.as_inner()).finish()
     }
 }

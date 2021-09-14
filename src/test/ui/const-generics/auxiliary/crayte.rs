@@ -1,4 +1,6 @@
 // edition:2018
+#![cfg_attr(full, feature(const_generics))]
+#![cfg_attr(full, allow(incomplete_features))]
 
 pub trait Foo<const N: usize> {}
 struct Local;

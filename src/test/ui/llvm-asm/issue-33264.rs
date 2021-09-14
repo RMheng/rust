@@ -3,7 +3,6 @@
 
 #![allow(dead_code, non_upper_case_globals)]
 #![feature(llvm_asm)]
-#![allow(deprecated)] // llvm_asm!
 
 #[repr(C)]
 pub struct D32x4(f32,f32,f32,f32);

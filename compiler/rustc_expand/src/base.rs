@@ -1,7 +1,6 @@
 use crate::expand::{self, AstFragment, Invocation};
 use crate::module::DirOwnership;
 
-use rustc_ast::attr::MarkedAttrs;
 use rustc_ast::ptr::P;
 use rustc_ast::token::{self, Nonterminal};
 use rustc_ast::tokenstream::{CanSynthesizeMissingTokens, TokenStream};
@@ -354,7 +353,6 @@ pub trait MacResult {
     fn make_expr(self: Box<Self>) -> Option<P<ast::Expr>> {
         None
     }
-
     /// Creates zero or more items.
     fn make_items(self: Box<Self>) -> Option<SmallVec<[P<ast::Item>; 1]>> {
         None
@@ -654,7 +652,10 @@ pub enum SyntaxExtensionKind {
     /// A trivial attribute "macro" that does nothing,
     /// only keeps the attribute and marks it as inert,
     /// thus making it ineligible for further expansion.
-    NonMacroAttr,
+    NonMacroAttr {
+        /// Suppresses the `unused_attributes` lint for this attribute.
+        mark_used: bool,
+    },
 
     /// A token-based derive macro.
     Derive(
@@ -703,7 +704,7 @@ impl SyntaxExtension {
             SyntaxExtensionKind::Bang(..) | SyntaxExtensionKind::LegacyBang(..) => MacroKind::Bang,
             SyntaxExtensionKind::Attr(..)
             | SyntaxExtensionKind::LegacyAttr(..)
-            | SyntaxExtensionKind::NonMacroAttr => MacroKind::Attr,
+            | SyntaxExtensionKind::NonMacroAttr { .. } => MacroKind::Attr,
             SyntaxExtensionKind::Derive(..) | SyntaxExtensionKind::LegacyDerive(..) => {
                 MacroKind::Derive
             }
@@ -809,8 +810,8 @@ impl SyntaxExtension {
         SyntaxExtension::default(SyntaxExtensionKind::Derive(Box::new(expander)), edition)
     }
 
-    pub fn non_macro_attr(edition: Edition) -> SyntaxExtension {
-        SyntaxExtension::default(SyntaxExtensionKind::NonMacroAttr, edition)
+    pub fn non_macro_attr(mark_used: bool, edition: Edition) -> SyntaxExtension {
+        SyntaxExtension::default(SyntaxExtensionKind::NonMacroAttr { mark_used }, edition)
     }
 
     pub fn expn_data(
@@ -927,7 +928,6 @@ pub struct ExpansionData {
     pub prior_type_ascription: Option<(Span, bool)>,
     /// Some parent node that is close to this macro call
     pub lint_node_id: NodeId,
-    pub is_trailing_mac: bool,
 }
 
 type OnExternModLoaded<'a> =
@@ -951,10 +951,6 @@ pub struct ExtCtxt<'a> {
     ///
     /// `Ident` is the module name.
     pub(super) extern_mod_loaded: OnExternModLoaded<'a>,
-    /// When we 'expand' an inert attribute, we leave it
-    /// in the AST, but insert it here so that we know
-    /// not to expand it again.
-    pub(super) expanded_inert_attrs: MarkedAttrs,
 }
 
 impl<'a> ExtCtxt<'a> {
@@ -978,11 +974,9 @@ impl<'a> ExtCtxt<'a> {
                 dir_ownership: DirOwnership::Owned { relative: None },
                 prior_type_ascription: None,
                 lint_node_id: ast::CRATE_NODE_ID,
-                is_trailing_mac: false,
             },
             force_mode: false,
             expansions: FxHashMap::default(),
-            expanded_inert_attrs: MarkedAttrs::new(),
         }
     }
 
@@ -1113,7 +1107,7 @@ impl<'a> ExtCtxt<'a> {
                         span,
                         &format!(
                             "cannot resolve relative path in non-file source `{}`",
-                            self.source_map().filename_for_diagnostics(&other)
+                            other.prefer_local()
                         ),
                     ));
                 }

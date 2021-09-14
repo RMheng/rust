@@ -1,9 +1,10 @@
-#![feature(box_syntax, plugin, rustc_private)]
+#![feature(box_syntax, plugin, plugin_registrar, rustc_private)]
 #![crate_type = "dylib"]
 
 extern crate rustc_ast_pretty;
 extern crate rustc_driver;
 extern crate rustc_hir;
+#[macro_use]
 extern crate rustc_lint;
 #[macro_use]
 extern crate rustc_session;
@@ -15,11 +16,11 @@ use rustc_driver::plugin::Registry;
 use rustc_hir as hir;
 use rustc_hir::intravisit;
 use rustc_hir::Node;
-use rustc_lint::{LateContext, LateLintPass, LintContext};
+use rustc_lint::{LateContext, LateLintPass, LintArray, LintContext, LintPass};
 use rustc_span::source_map;
 
-#[no_mangle]
-fn __rustc_plugin_registrar(reg: &mut Registry) {
+#[plugin_registrar]
+pub fn plugin_registrar(reg: &mut Registry) {
     reg.lint_store.register_lints(&[&MISSING_ALLOWED_ATTR]);
     reg.lint_store.register_late_pass(|| box MissingAllowedAttrPass);
 }

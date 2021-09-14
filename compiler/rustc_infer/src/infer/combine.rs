@@ -22,6 +22,7 @@
 // is also useful to track which value is the "expected" value in
 // terms of error reporting.
 
+use super::equate::Equate;
 use super::glb::Glb;
 use super::lub::Lub;
 use super::sub::Sub;
@@ -29,7 +30,6 @@ use super::type_variable::TypeVariableValue;
 use super::unify_key::replace_if_possible;
 use super::unify_key::{ConstVarValue, ConstVariableValue};
 use super::unify_key::{ConstVariableOrigin, ConstVariableOriginKind};
-use super::{equate::Equate, type_variable::Diverging};
 use super::{InferCtxt, MiscVariable, TypeTrace};
 
 use crate::traits::{Obligation, PredicateObligations};
@@ -129,8 +129,6 @@ impl<'infcx, 'tcx> InferCtxt<'infcx, 'tcx> {
     where
         R: ConstEquateRelation<'tcx>,
     {
-        let a = self.tcx.expose_default_const_substs(a);
-        let b = self.tcx.expose_default_const_substs(b);
         debug!("{}.consts({:?}, {:?})", relation.tag(), a, b);
         if a == b {
             return Ok(a);
@@ -202,7 +200,7 @@ impl<'infcx, 'tcx> InferCtxt<'infcx, 'tcx> {
     /// A good example of this is the following:
     ///
     /// ```rust
-    /// #![feature(generic_const_exprs)]
+    /// #![feature(const_generics)]
     ///
     /// fn bind<const N: usize>(value: [u8; N]) -> [u8; 3 + 4] {
     ///     todo!()
@@ -645,13 +643,8 @@ impl TypeRelation<'tcx> for Generalizer<'_, 'tcx> {
                                 .inner
                                 .borrow_mut()
                                 .type_variables()
-                                .new_var(self.for_universe, Diverging::NotDiverging, origin);
+                                .new_var(self.for_universe, false, origin);
                             let u = self.tcx().mk_ty_var(new_var_id);
-
-                            // Record that we replaced `vid` with `new_var_id` as part of a generalization
-                            // operation. This is needed to detect cyclic types. To see why, see the
-                            // docs in the `type_variables` module.
-                            self.infcx.inner.borrow_mut().type_variables().sub(vid, new_var_id);
                             debug!("generalize: replacing original vid={:?} with new={:?}", vid, u);
                             Ok(u)
                         }
@@ -744,9 +737,10 @@ impl TypeRelation<'tcx> for Generalizer<'_, 'tcx> {
                     }
                 }
             }
-            ty::ConstKind::Unevaluated(uv) if self.tcx().lazy_normalization() => {
-                assert_eq!(uv.promoted, None);
-                let substs = uv.substs(self.tcx());
+            ty::ConstKind::Unevaluated(ty::Unevaluated { def, substs, promoted })
+                if self.tcx().lazy_normalization() =>
+            {
+                assert_eq!(promoted, None);
                 let substs = self.relate_with_variance(
                     ty::Variance::Invariant,
                     ty::VarianceDiagInfo::default(),
@@ -755,7 +749,7 @@ impl TypeRelation<'tcx> for Generalizer<'_, 'tcx> {
                 )?;
                 Ok(self.tcx().mk_const(ty::Const {
                     ty: c.ty,
-                    val: ty::ConstKind::Unevaluated(ty::Unevaluated::new(uv.def, substs)),
+                    val: ty::ConstKind::Unevaluated(ty::Unevaluated { def, substs, promoted }),
                 }))
             }
             _ => relate::super_relate_consts(self, c, c),
@@ -887,7 +881,7 @@ impl TypeRelation<'tcx> for ConstInferUnifier<'_, 'tcx> {
                             *self.infcx.inner.borrow_mut().type_variables().var_origin(vid);
                         let new_var_id = self.infcx.inner.borrow_mut().type_variables().new_var(
                             self.for_universe,
-                            Diverging::NotDiverging,
+                            false,
                             origin,
                         );
                         let u = self.tcx().mk_ty_var(new_var_id);
@@ -977,9 +971,10 @@ impl TypeRelation<'tcx> for ConstInferUnifier<'_, 'tcx> {
                     }
                 }
             }
-            ty::ConstKind::Unevaluated(uv) if self.tcx().lazy_normalization() => {
-                assert_eq!(uv.promoted, None);
-                let substs = uv.substs(self.tcx());
+            ty::ConstKind::Unevaluated(ty::Unevaluated { def, substs, promoted })
+                if self.tcx().lazy_normalization() =>
+            {
+                assert_eq!(promoted, None);
                 let substs = self.relate_with_variance(
                     ty::Variance::Invariant,
                     ty::VarianceDiagInfo::default(),
@@ -988,7 +983,7 @@ impl TypeRelation<'tcx> for ConstInferUnifier<'_, 'tcx> {
                 )?;
                 Ok(self.tcx().mk_const(ty::Const {
                     ty: c.ty,
-                    val: ty::ConstKind::Unevaluated(ty::Unevaluated::new(uv.def, substs)),
+                    val: ty::ConstKind::Unevaluated(ty::Unevaluated { def, substs, promoted }),
                 }))
             }
             _ => relate::super_relate_consts(self, c, c),

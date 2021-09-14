@@ -1,4 +1,4 @@
-#![feature(type_alias_impl_trait)]
+#![feature(min_type_alias_impl_trait)]
 trait OpaqueTrait {}
 impl<T> OpaqueTrait for T {}
 type OpaqueType = impl OpaqueTrait;

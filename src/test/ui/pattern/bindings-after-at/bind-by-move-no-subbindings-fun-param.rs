@@ -1,5 +1,7 @@
 // See issue #12534.
 
+#![feature(bindings_after_at)]
+
 fn main() {}
 
 struct A(Box<u8>);

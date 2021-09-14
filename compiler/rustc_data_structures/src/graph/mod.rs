@@ -60,13 +60,18 @@ pub trait WithStartNode: DirectedGraph {
 }
 
 pub trait ControlFlowGraph:
-    DirectedGraph + WithStartNode + WithPredecessors + WithSuccessors + WithNumNodes
+    DirectedGraph + WithStartNode + WithPredecessors + WithStartNode + WithSuccessors + WithNumNodes
 {
     // convenient trait
 }
 
 impl<T> ControlFlowGraph for T where
-    T: DirectedGraph + WithStartNode + WithPredecessors + WithSuccessors + WithNumNodes
+    T: DirectedGraph
+        + WithStartNode
+        + WithPredecessors
+        + WithStartNode
+        + WithSuccessors
+        + WithNumNodes
 {
 }
 

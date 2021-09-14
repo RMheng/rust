@@ -273,14 +273,24 @@ pub fn is_whitespace(c: char) -> bool {
 /// a formal definition of valid identifier name.
 pub fn is_id_start(c: char) -> bool {
     // This is XID_Start OR '_' (which formally is not a XID_Start).
-    c == '_' || unicode_xid::UnicodeXID::is_xid_start(c)
+    // We also add fast-path for ascii idents
+    ('a'..='z').contains(&c)
+        || ('A'..='Z').contains(&c)
+        || c == '_'
+        || (c > '\x7f' && unicode_xid::UnicodeXID::is_xid_start(c))
 }
 
 /// True if `c` is valid as a non-first character of an identifier.
 /// See [Rust language reference](https://doc.rust-lang.org/reference/identifiers.html) for
 /// a formal definition of valid identifier name.
 pub fn is_id_continue(c: char) -> bool {
-    unicode_xid::UnicodeXID::is_xid_continue(c)
+    // This is exactly XID_Continue.
+    // We also add fast-path for ascii idents
+    ('a'..='z').contains(&c)
+        || ('A'..='Z').contains(&c)
+        || ('0'..='9').contains(&c)
+        || c == '_'
+        || (c > '\x7f' && unicode_xid::UnicodeXID::is_xid_continue(c))
 }
 
 /// The passed string is lexically an identifier.
@@ -489,7 +499,7 @@ impl Cursor<'_> {
         // Start is already eaten, eat the rest of identifier.
         self.eat_while(is_id_continue);
         // Known prefixes must have been handled earlier. So if
-        // we see a prefix here, it is definitely an unknown prefix.
+        // we see a prefix here, it is definitely a unknown prefix.
         match self.first() {
             '#' | '"' | '\'' => UnknownPrefix,
             _ => Ident,

@@ -1,5 +1,5 @@
 // run-pass
-#![feature(generic_const_exprs)]
+#![feature(const_generics)]
 #![allow(incomplete_features)]
 
 const fn inner<'a>() -> usize where &'a (): Sized {

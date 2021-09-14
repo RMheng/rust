@@ -423,10 +423,10 @@ fn run_compiler(
             sess.print_perf_stats();
         }
 
-        if sess.opts.debugging_opts.print_fuel.is_some() {
+        if sess.print_fuel_crate.is_some() {
             eprintln!(
                 "Fuel used by {}: {}",
-                sess.opts.debugging_opts.print_fuel.as_ref().unwrap(),
+                sess.print_fuel_crate.as_ref().unwrap(),
                 sess.print_fuel.load(SeqCst)
             );
         }
@@ -764,7 +764,13 @@ pub fn version(binary: &str, matches: &getopts::Matches) {
         println!("release: {}", unw(util::release_str()));
 
         let debug_flags = matches.opt_strs("Z");
-        let backend_name = debug_flags.iter().find_map(|x| x.strip_prefix("codegen-backend="));
+        let backend_name = debug_flags.iter().find_map(|x| {
+            if x.starts_with("codegen-backend=") {
+                Some(&x["codegen-backends=".len()..])
+            } else {
+                None
+            }
+        });
         get_codegen_backend(&None, backend_name).print_version();
     }
 }
@@ -1287,6 +1293,9 @@ pub fn init_env_logger(env: &str) {
         .with_indent_lines(true)
         .with_ansi(color_logs)
         .with_targets(true)
+        .with_wraparound(10)
+        .with_verbose_exit(true)
+        .with_verbose_entry(true)
         .with_indent_amount(2);
     #[cfg(parallel_compiler)]
     let layer = layer.with_thread_ids(true).with_thread_names(true);

@@ -2,21 +2,14 @@
 
 //! Temporal quantification.
 //!
-//! # Examples:
-//!
-//! There are multiple ways to create a new [`Duration`]:
+//! Example:
 //!
 //! ```
-//! # use std::time::Duration;
-//! let five_seconds = Duration::from_secs(5);
-//! assert_eq!(five_seconds, Duration::from_millis(5_000));
-//! assert_eq!(five_seconds, Duration::from_micros(5_000_000));
-//! assert_eq!(five_seconds, Duration::from_nanos(5_000_000_000));
+//! use std::time::Duration;
 //!
-//! let ten_seconds = Duration::from_secs(10);
-//! let seven_nanos = Duration::from_nanos(7);
-//! let total = ten_seconds + seven_nanos;
-//! assert_eq!(total, Duration::new(10, 7));
+//! let five_seconds = Duration::new(5, 0);
+//! // both declarations are equivalent
+//! assert_eq!(Duration::new(5, 0), Duration::from_secs(5));
 //! ```
 
 use crate::fmt;

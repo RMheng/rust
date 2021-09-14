@@ -16,12 +16,10 @@
 #![doc(html_root_url = "https://doc.rust-lang.org/nightly/nightly-rustc/")]
 #![feature(array_windows)]
 #![feature(crate_visibility_modifier)]
-#![feature(if_let_guard)]
 #![feature(negative_impls)]
 #![feature(nll)]
 #![feature(min_specialization)]
 #![feature(thread_local_const_init)]
-#![cfg_attr(bootstrap, allow(incomplete_features))] // if_let_guard
 
 #[macro_use]
 extern crate rustc_macros;
@@ -159,7 +157,7 @@ scoped_tls::scoped_thread_local!(static SESSION_GLOBALS: SessionGlobals);
 // FIXME: We should use this enum or something like it to get rid of the
 // use of magic `/rust/1.x/...` paths across the board.
 #[derive(Debug, Eq, PartialEq, Clone, Ord, PartialOrd)]
-#[derive(Decodable)]
+#[derive(HashStable_Generic, Decodable)]
 pub enum RealFileName {
     LocalPath(PathBuf),
     /// For remapped paths (namely paths into libstd that have been mapped
@@ -260,19 +258,18 @@ impl RealFileName {
         }
     }
 
-    pub fn to_string_lossy(&self, display_pref: FileNameDisplayPreference) -> Cow<'_, str> {
-        match display_pref {
-            FileNameDisplayPreference::Local => self.local_path_if_available().to_string_lossy(),
-            FileNameDisplayPreference::Remapped => {
-                self.remapped_path_if_available().to_string_lossy()
-            }
+    pub fn to_string_lossy(&self, prefer_local: bool) -> Cow<'_, str> {
+        if prefer_local {
+            self.local_path_if_available().to_string_lossy()
+        } else {
+            self.remapped_path_if_available().to_string_lossy()
         }
     }
 }
 
 /// Differentiates between real files and common virtual files.
 #[derive(Debug, Eq, PartialEq, Clone, Ord, PartialOrd, Hash)]
-#[derive(Decodable, Encodable)]
+#[derive(HashStable_Generic, Decodable, Encodable)]
 pub enum FileName {
     Real(RealFileName),
     /// Call to `quote!`.
@@ -301,15 +298,9 @@ impl From<PathBuf> for FileName {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Hash, Debug)]
-pub enum FileNameDisplayPreference {
-    Remapped,
-    Local,
-}
-
 pub struct FileNameDisplay<'a> {
     inner: &'a FileName,
-    display_pref: FileNameDisplayPreference,
+    prefer_local: bool,
 }
 
 impl fmt::Display for FileNameDisplay<'_> {
@@ -317,7 +308,7 @@ impl fmt::Display for FileNameDisplay<'_> {
         use FileName::*;
         match *self.inner {
             Real(ref name) => {
-                write!(fmt, "{}", name.to_string_lossy(self.display_pref))
+                write!(fmt, "{}", name.to_string_lossy(self.prefer_local))
             }
             QuoteExpansion(_) => write!(fmt, "<quote expansion>"),
             MacroExpansion(_) => write!(fmt, "<macro expansion>"),
@@ -335,7 +326,7 @@ impl fmt::Display for FileNameDisplay<'_> {
 impl FileNameDisplay<'_> {
     pub fn to_string_lossy(&self) -> Cow<'_, str> {
         match self.inner {
-            FileName::Real(ref inner) => inner.to_string_lossy(self.display_pref),
+            FileName::Real(ref inner) => inner.to_string_lossy(self.prefer_local),
             _ => Cow::from(format!("{}", self)),
         }
     }
@@ -359,17 +350,13 @@ impl FileName {
     }
 
     pub fn prefer_remapped(&self) -> FileNameDisplay<'_> {
-        FileNameDisplay { inner: self, display_pref: FileNameDisplayPreference::Remapped }
+        FileNameDisplay { inner: self, prefer_local: false }
     }
 
     // This may include transient local filesystem information.
     // Must not be embedded in build outputs.
     pub fn prefer_local(&self) -> FileNameDisplay<'_> {
-        FileNameDisplay { inner: self, display_pref: FileNameDisplayPreference::Local }
-    }
-
-    pub fn display(&self, display_pref: FileNameDisplayPreference) -> FileNameDisplay<'_> {
-        FileNameDisplay { inner: self, display_pref }
+        FileNameDisplay { inner: self, prefer_local: true }
     }
 
     pub fn macro_expansion_source_code(src: &str) -> FileName {
@@ -606,14 +593,6 @@ impl Span {
     pub fn parent(self) -> Option<Span> {
         let expn_data = self.ctxt().outer_expn_data();
         if !expn_data.is_root() { Some(expn_data.call_site) } else { None }
-    }
-
-    /// Walk down the expansion ancestors to find a span that's contained within `outer`.
-    pub fn find_ancestor_inside(mut self, outer: Span) -> Option<Span> {
-        while !outer.contains(self) {
-            self = self.parent()?;
-        }
-        Some(self)
     }
 
     /// Edition of the crate from which this span came.

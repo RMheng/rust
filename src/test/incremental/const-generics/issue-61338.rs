@@ -1,5 +1,7 @@
 // revisions:rpass1
 
+#![feature(const_generics)]
+
 struct Struct<T>(T);
 
 impl<T, const N: usize> Struct<[T; N]> {

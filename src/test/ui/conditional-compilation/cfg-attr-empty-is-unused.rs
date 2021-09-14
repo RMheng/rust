@@ -4,10 +4,10 @@
 
 #![deny(unused)]
 
-#[cfg_attr(FALSE,)] //~ ERROR `#[cfg_attr]` does not expand to any attributes
+#[cfg_attr(FALSE,)] //~ ERROR unused attribute
 fn _f() {}
 
-#[cfg_attr(TRUE,)] //~ ERROR `#[cfg_attr]` does not expand to any attributes
+#[cfg_attr(TRUE,)] //~ ERROR unused attribute
 fn _g() {}
 
 fn main() {}

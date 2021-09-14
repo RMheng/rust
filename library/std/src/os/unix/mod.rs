@@ -40,8 +40,6 @@ mod platform {
     pub use crate::os::dragonfly::*;
     #[cfg(target_os = "emscripten")]
     pub use crate::os::emscripten::*;
-    #[cfg(target_os = "espidf")]
-    pub use crate::os::espidf::*;
     #[cfg(target_os = "freebsd")]
     pub use crate::os::freebsd::*;
     #[cfg(target_os = "fuchsia")]
@@ -84,7 +82,6 @@ pub mod thread;
     target_os = "freebsd",
     target_os = "ios",
     target_os = "macos",
-    target_os = "netbsd",
     target_os = "openbsd"
 ))]
 pub mod ucred;
@@ -108,7 +105,7 @@ pub mod prelude {
     pub use super::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt};
     #[doc(no_inline)]
     #[stable(feature = "rust1", since = "1.0.0")]
-    pub use super::io::{AsFd, AsRawFd, BorrowedFd, FromRawFd, IntoRawFd, OwnedFd, RawFd};
+    pub use super::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
     #[doc(no_inline)]
     #[stable(feature = "rust1", since = "1.0.0")]
     pub use super::process::{CommandExt, ExitStatusExt};

@@ -42,7 +42,7 @@ mod cursor;
 mod direction;
 mod engine;
 pub mod fmt;
-pub mod graphviz;
+mod graphviz;
 pub mod lattice;
 mod visitor;
 

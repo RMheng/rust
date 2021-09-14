@@ -5,57 +5,12 @@ use crate::convert::TryFrom;
 use crate::fmt;
 use crate::io::{self, IoSlice, IoSliceMut};
 use crate::net::{Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr};
-use crate::os::wasi::io::{AsFd, AsRawFd, BorrowedFd, FromRawFd, IntoRawFd, RawFd};
 use crate::sys::unsupported;
-use crate::sys_common::{AsInner, FromInner, IntoInner};
+use crate::sys_common::FromInner;
 use crate::time::Duration;
 
-pub struct Socket(WasiFd);
-
 pub struct TcpStream {
-    inner: Socket,
-}
-
-impl AsInner<WasiFd> for Socket {
-    fn as_inner(&self) -> &WasiFd {
-        &self.0
-    }
-}
-
-impl IntoInner<WasiFd> for Socket {
-    fn into_inner(self) -> WasiFd {
-        self.0
-    }
-}
-
-impl FromInner<WasiFd> for Socket {
-    fn from_inner(inner: WasiFd) -> Socket {
-        Socket(inner)
-    }
-}
-
-impl AsFd for Socket {
-    fn as_fd(&self) -> BorrowedFd<'_> {
-        self.0.as_fd()
-    }
-}
-
-impl AsRawFd for Socket {
-    fn as_raw_fd(&self) -> RawFd {
-        self.0.as_raw_fd()
-    }
-}
-
-impl IntoRawFd for Socket {
-    fn into_raw_fd(self) -> RawFd {
-        self.0.into_raw_fd()
-    }
-}
-
-impl FromRawFd for Socket {
-    unsafe fn from_raw_fd(raw_fd: RawFd) -> Self {
-        unsafe { Self(FromRawFd::from_raw_fd(raw_fd)) }
-    }
+    fd: WasiFd,
 }
 
 impl TcpStream {
@@ -127,14 +82,6 @@ impl TcpStream {
         unsupported()
     }
 
-    pub fn set_linger(&self, _: Option<Duration>) -> io::Result<()> {
-        unsupported()
-    }
-
-    pub fn linger(&self) -> io::Result<Option<Duration>> {
-        unsupported()
-    }
-
     pub fn set_nodelay(&self, _: bool) -> io::Result<()> {
         unsupported()
     }
@@ -159,29 +106,29 @@ impl TcpStream {
         unsupported()
     }
 
-    pub fn socket(&self) -> &Socket {
-        &self.inner
+    pub fn fd(&self) -> &WasiFd {
+        &self.fd
     }
 
-    pub fn into_socket(self) -> Socket {
-        self.inner
+    pub fn into_fd(self) -> WasiFd {
+        self.fd
     }
 }
 
-impl FromInner<Socket> for TcpStream {
-    fn from_inner(socket: Socket) -> TcpStream {
-        TcpStream { inner: socket }
+impl FromInner<u32> for TcpStream {
+    fn from_inner(fd: u32) -> TcpStream {
+        unsafe { TcpStream { fd: WasiFd::from_raw(fd) } }
     }
 }
 
 impl fmt::Debug for TcpStream {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TcpStream").field("fd", &self.inner.as_raw_fd()).finish()
+        f.debug_struct("TcpStream").field("fd", &self.fd.as_raw()).finish()
     }
 }
 
 pub struct TcpListener {
-    inner: Socket,
+    fd: WasiFd,
 }
 
 impl TcpListener {
@@ -225,41 +172,29 @@ impl TcpListener {
         unsupported()
     }
 
-    pub fn socket(&self) -> &Socket {
-        &self.inner
+    pub fn fd(&self) -> &WasiFd {
+        &self.fd
     }
 
-    pub fn into_socket(self) -> Socket {
-        self.inner
-    }
-}
-
-impl AsInner<Socket> for TcpListener {
-    fn as_inner(&self) -> &Socket {
-        &self.inner
+    pub fn into_fd(self) -> WasiFd {
+        self.fd
     }
 }
 
-impl IntoInner<Socket> for TcpListener {
-    fn into_inner(self) -> Socket {
-        self.inner
-    }
-}
-
-impl FromInner<Socket> for TcpListener {
-    fn from_inner(inner: Socket) -> TcpListener {
-        TcpListener { inner }
+impl FromInner<u32> for TcpListener {
+    fn from_inner(fd: u32) -> TcpListener {
+        unsafe { TcpListener { fd: WasiFd::from_raw(fd) } }
     }
 }
 
 impl fmt::Debug for TcpListener {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TcpListener").field("fd", &self.inner.as_raw_fd()).finish()
+        f.debug_struct("TcpListener").field("fd", &self.fd.as_raw()).finish()
     }
 }
 
 pub struct UdpSocket {
-    inner: Socket,
+    fd: WasiFd,
 }
 
 impl UdpSocket {
@@ -387,36 +322,24 @@ impl UdpSocket {
         unsupported()
     }
 
-    pub fn socket(&self) -> &Socket {
-        &self.inner
+    pub fn fd(&self) -> &WasiFd {
+        &self.fd
     }
 
-    pub fn into_socket(self) -> Socket {
-        self.inner
-    }
-}
-
-impl AsInner<Socket> for UdpSocket {
-    fn as_inner(&self) -> &Socket {
-        &self.inner
+    pub fn into_fd(self) -> WasiFd {
+        self.fd
     }
 }
 
-impl IntoInner<Socket> for UdpSocket {
-    fn into_inner(self) -> Socket {
-        self.inner
-    }
-}
-
-impl FromInner<Socket> for UdpSocket {
-    fn from_inner(inner: Socket) -> UdpSocket {
-        UdpSocket { inner }
+impl FromInner<u32> for UdpSocket {
+    fn from_inner(fd: u32) -> UdpSocket {
+        unsafe { UdpSocket { fd: WasiFd::from_raw(fd) } }
     }
 }
 
 impl fmt::Debug for UdpSocket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("UdpSocket").field("fd", &self.inner.as_raw_fd()).finish()
+        f.debug_struct("UdpSocket").field("fd", &self.fd.as_raw()).finish()
     }
 }
 

@@ -13,8 +13,7 @@ use core::slice;
 use crate::alloc::handle_alloc_error;
 use crate::alloc::{Allocator, Global, Layout};
 use crate::boxed::Box;
-use crate::collections::TryReserveError;
-use crate::collections::TryReserveErrorKind::*;
+use crate::collections::TryReserveError::{self, *};
 
 #[cfg(test)]
 mod tests;
@@ -426,7 +425,7 @@ impl<T, A: Allocator> RawVec<T, A> {
         if mem::size_of::<T>() == 0 {
             // Since we return a capacity of `usize::MAX` when `elem_size` is
             // 0, getting to here necessarily means the `RawVec` is overfull.
-            return Err(CapacityOverflow.into());
+            return Err(CapacityOverflow);
         }
 
         // Nothing we can really do about these checks, sadly.
@@ -452,7 +451,7 @@ impl<T, A: Allocator> RawVec<T, A> {
         if mem::size_of::<T>() == 0 {
             // Since we return a capacity of `usize::MAX` when the type size is
             // 0, getting to here necessarily means the `RawVec` is overfull.
-            return Err(CapacityOverflow.into());
+            return Err(CapacityOverflow);
         }
 
         let cap = len.checked_add(additional).ok_or(CapacityOverflow)?;
@@ -472,9 +471,10 @@ impl<T, A: Allocator> RawVec<T, A> {
 
         let ptr = unsafe {
             let new_layout = Layout::from_size_align_unchecked(new_size, layout.align());
-            self.alloc
-                .shrink(ptr, layout, new_layout)
-                .map_err(|_| AllocError { layout: new_layout, non_exhaustive: () })?
+            self.alloc.shrink(ptr, layout, new_layout).map_err(|_| TryReserveError::AllocError {
+                layout: new_layout,
+                non_exhaustive: (),
+            })?
         };
         self.set_ptr(ptr);
         Ok(())
@@ -510,7 +510,7 @@ where
         alloc.allocate(new_layout)
     };
 
-    memory.map_err(|_| AllocError { layout: new_layout, non_exhaustive: () }.into())
+    memory.map_err(|_| AllocError { layout: new_layout, non_exhaustive: () })
 }
 
 unsafe impl<#[may_dangle] T, A: Allocator> Drop for RawVec<T, A> {
@@ -526,7 +526,7 @@ unsafe impl<#[may_dangle] T, A: Allocator> Drop for RawVec<T, A> {
 #[cfg(not(no_global_oom_handling))]
 #[inline]
 fn handle_reserve(result: Result<(), TryReserveError>) {
-    match result.map_err(|e| e.kind()) {
+    match result {
         Err(CapacityOverflow) => capacity_overflow(),
         Err(AllocError { layout, .. }) => handle_alloc_error(layout),
         Ok(()) => { /* yay */ }
@@ -545,7 +545,7 @@ fn handle_reserve(result: Result<(), TryReserveError>) {
 #[inline]
 fn alloc_guard(alloc_size: usize) -> Result<(), TryReserveError> {
     if usize::BITS < 64 && alloc_size > isize::MAX as usize {
-        Err(CapacityOverflow.into())
+        Err(CapacityOverflow)
     } else {
         Ok(())
     }

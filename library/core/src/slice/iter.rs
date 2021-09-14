@@ -1,3 +1,4 @@
+// ignore-tidy-filelength
 //! Definitions of a bunch of iterators for `[T]`.
 
 #[macro_use] // import iterator! and forward_iterator!
@@ -7,7 +8,7 @@ use crate::cmp;
 use crate::cmp::Ordering;
 use crate::fmt;
 use crate::intrinsics::{assume, exact_div, unchecked_sub};
-use crate::iter::{FusedIterator, TrustedLen, TrustedRandomAccess, TrustedRandomAccessNoCoerce};
+use crate::iter::{FusedIterator, TrustedLen, TrustedRandomAccess};
 use crate::marker::{PhantomData, Send, Sized, Sync};
 use crate::mem;
 use crate::num::NonZeroUsize;
@@ -400,13 +401,7 @@ where
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        if self.finished {
-            (0, Some(0))
-        } else {
-            // If the predicate doesn't match anything, we yield one slice.
-            // If it matches every element, we yield `len() + 1` empty slices.
-            (1, Some(self.v.len() + 1))
-        }
+        if self.finished { (0, Some(0)) } else { (1, Some(self.v.len() + 1)) }
     }
 }
 
@@ -531,14 +526,7 @@ where
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        if self.finished {
-            (0, Some(0))
-        } else {
-            // If the predicate doesn't match anything, we yield one slice.
-            // If it matches every element, we yield `len()` one-element slices,
-            // or a single empty slice.
-            (1, Some(cmp::max(1, self.v.len())))
-        }
+        if self.finished { (0, Some(0)) } else { (1, Some(self.v.len() + 1)) }
     }
 }
 
@@ -660,8 +648,8 @@ where
         if self.finished {
             (0, Some(0))
         } else {
-            // If the predicate doesn't match anything, we yield one slice.
-            // If it matches every element, we yield `len() + 1` empty slices.
+            // if the predicate doesn't match anything, we yield one slice
+            // if it matches every element, we yield len+1 empty slices.
             (1, Some(self.v.len() + 1))
         }
     }
@@ -776,10 +764,9 @@ where
         if self.finished {
             (0, Some(0))
         } else {
-            // If the predicate doesn't match anything, we yield one slice.
-            // If it matches every element, we yield `len()` one-element slices,
-            // or a single empty slice.
-            (1, Some(cmp::max(1, self.v.len())))
+            // if the predicate doesn't match anything, we yield one slice
+            // if it matches every element, we yield len+1 empty slices.
+            (1, Some(self.v.len() + 1))
         }
     }
 }
@@ -1022,10 +1009,7 @@ impl<T, I: SplitIter<Item = T>> Iterator for GenericSplitN<I> {
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         let (lower, upper_opt) = self.iter.size_hint();
-        (
-            cmp::min(self.count, lower),
-            Some(upper_opt.map_or(self.count, |upper| cmp::min(self.count, upper))),
-        )
+        (lower, upper_opt.map(|upper| cmp::min(self.count, upper)))
     }
 }
 
@@ -1328,11 +1312,7 @@ impl<T> FusedIterator for Windows<'_, T> {}
 
 #[doc(hidden)]
 #[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccess for Windows<'a, T> {}
-
-#[doc(hidden)]
-#[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccessNoCoerce for Windows<'a, T> {
+unsafe impl<'a, T> TrustedRandomAccess for Windows<'a, T> {
     const MAY_HAVE_SIDE_EFFECT: bool = false;
 }
 
@@ -1497,11 +1477,7 @@ impl<T> FusedIterator for Chunks<'_, T> {}
 
 #[doc(hidden)]
 #[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccess for Chunks<'a, T> {}
-
-#[doc(hidden)]
-#[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccessNoCoerce for Chunks<'a, T> {
+unsafe impl<'a, T> TrustedRandomAccess for Chunks<'a, T> {
     const MAY_HAVE_SIDE_EFFECT: bool = false;
 }
 
@@ -1663,11 +1639,7 @@ impl<T> FusedIterator for ChunksMut<'_, T> {}
 
 #[doc(hidden)]
 #[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccess for ChunksMut<'a, T> {}
-
-#[doc(hidden)]
-#[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccessNoCoerce for ChunksMut<'a, T> {
+unsafe impl<'a, T> TrustedRandomAccess for ChunksMut<'a, T> {
     const MAY_HAVE_SIDE_EFFECT: bool = false;
 }
 
@@ -1821,11 +1793,7 @@ impl<T> FusedIterator for ChunksExact<'_, T> {}
 
 #[doc(hidden)]
 #[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccess for ChunksExact<'a, T> {}
-
-#[doc(hidden)]
-#[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccessNoCoerce for ChunksExact<'a, T> {
+unsafe impl<'a, T> TrustedRandomAccess for ChunksExact<'a, T> {
     const MAY_HAVE_SIDE_EFFECT: bool = false;
 }
 
@@ -1976,11 +1944,7 @@ impl<T> FusedIterator for ChunksExactMut<'_, T> {}
 
 #[doc(hidden)]
 #[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccess for ChunksExactMut<'a, T> {}
-
-#[doc(hidden)]
-#[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccessNoCoerce for ChunksExactMut<'a, T> {
+unsafe impl<'a, T> TrustedRandomAccess for ChunksExactMut<'a, T> {
     const MAY_HAVE_SIDE_EFFECT: bool = false;
 }
 
@@ -2218,11 +2182,7 @@ impl<T, const N: usize> FusedIterator for ArrayChunks<'_, T, N> {}
 
 #[doc(hidden)]
 #[unstable(feature = "array_chunks", issue = "74985")]
-unsafe impl<'a, T, const N: usize> TrustedRandomAccess for ArrayChunks<'a, T, N> {}
-
-#[doc(hidden)]
-#[unstable(feature = "array_chunks", issue = "74985")]
-unsafe impl<'a, T, const N: usize> TrustedRandomAccessNoCoerce for ArrayChunks<'a, T, N> {
+unsafe impl<'a, T, const N: usize> TrustedRandomAccess for ArrayChunks<'a, T, N> {
     const MAY_HAVE_SIDE_EFFECT: bool = false;
 }
 
@@ -2335,11 +2295,7 @@ impl<T, const N: usize> FusedIterator for ArrayChunksMut<'_, T, N> {}
 
 #[doc(hidden)]
 #[unstable(feature = "array_chunks", issue = "74985")]
-unsafe impl<'a, T, const N: usize> TrustedRandomAccess for ArrayChunksMut<'a, T, N> {}
-
-#[doc(hidden)]
-#[unstable(feature = "array_chunks", issue = "74985")]
-unsafe impl<'a, T, const N: usize> TrustedRandomAccessNoCoerce for ArrayChunksMut<'a, T, N> {
+unsafe impl<'a, T, const N: usize> TrustedRandomAccess for ArrayChunksMut<'a, T, N> {
     const MAY_HAVE_SIDE_EFFECT: bool = false;
 }
 
@@ -2501,11 +2457,7 @@ impl<T> FusedIterator for RChunks<'_, T> {}
 
 #[doc(hidden)]
 #[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccess for RChunks<'a, T> {}
-
-#[doc(hidden)]
-#[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccessNoCoerce for RChunks<'a, T> {
+unsafe impl<'a, T> TrustedRandomAccess for RChunks<'a, T> {
     const MAY_HAVE_SIDE_EFFECT: bool = false;
 }
 
@@ -2666,11 +2618,7 @@ impl<T> FusedIterator for RChunksMut<'_, T> {}
 
 #[doc(hidden)]
 #[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccess for RChunksMut<'a, T> {}
-
-#[doc(hidden)]
-#[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccessNoCoerce for RChunksMut<'a, T> {
+unsafe impl<'a, T> TrustedRandomAccess for RChunksMut<'a, T> {
     const MAY_HAVE_SIDE_EFFECT: bool = false;
 }
 
@@ -2828,11 +2776,7 @@ impl<T> FusedIterator for RChunksExact<'_, T> {}
 
 #[doc(hidden)]
 #[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccess for RChunksExact<'a, T> {}
-
-#[doc(hidden)]
-#[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccessNoCoerce for RChunksExact<'a, T> {
+unsafe impl<'a, T> TrustedRandomAccess for RChunksExact<'a, T> {
     const MAY_HAVE_SIDE_EFFECT: bool = false;
 }
 
@@ -2987,31 +2931,19 @@ impl<T> FusedIterator for RChunksExactMut<'_, T> {}
 
 #[doc(hidden)]
 #[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccess for RChunksExactMut<'a, T> {}
-
-#[doc(hidden)]
-#[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccessNoCoerce for RChunksExactMut<'a, T> {
+unsafe impl<'a, T> TrustedRandomAccess for RChunksExactMut<'a, T> {
     const MAY_HAVE_SIDE_EFFECT: bool = false;
 }
 
 #[doc(hidden)]
 #[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccess for Iter<'a, T> {}
-
-#[doc(hidden)]
-#[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccessNoCoerce for Iter<'a, T> {
+unsafe impl<'a, T> TrustedRandomAccess for Iter<'a, T> {
     const MAY_HAVE_SIDE_EFFECT: bool = false;
 }
 
 #[doc(hidden)]
 #[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccess for IterMut<'a, T> {}
-
-#[doc(hidden)]
-#[unstable(feature = "trusted_random_access", issue = "none")]
-unsafe impl<'a, T> TrustedRandomAccessNoCoerce for IterMut<'a, T> {
+unsafe impl<'a, T> TrustedRandomAccess for IterMut<'a, T> {
     const MAY_HAVE_SIDE_EFFECT: bool = false;
 }
 

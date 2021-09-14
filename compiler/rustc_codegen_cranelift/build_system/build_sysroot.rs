@@ -91,9 +91,7 @@ pub(crate) fn build_sysroot(
             {
                 let file = file.unwrap().path();
                 let file_name_str = file.file_name().unwrap().to_str().unwrap();
-                if (file_name_str.contains("rustc_")
-                    && !file_name_str.contains("rustc_std_workspace_")
-                    && !file_name_str.contains("rustc_demangle"))
+                if file_name_str.contains("rustc_")
                     || file_name_str.contains("chalk")
                     || file_name_str.contains("tracing")
                     || file_name_str.contains("regex")

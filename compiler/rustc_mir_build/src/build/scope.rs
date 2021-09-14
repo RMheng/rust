@@ -1249,20 +1249,21 @@ impl<'a, 'tcx: 'a> Builder<'a, 'tcx> {
     }
 
     /// Build the unwind and generator drop trees.
-    crate fn build_drop_trees(&mut self) {
+    crate fn build_drop_trees(&mut self, should_abort: bool) {
         if self.generator_kind.is_some() {
-            self.build_generator_drop_trees();
+            self.build_generator_drop_trees(should_abort);
         } else {
             Self::build_unwind_tree(
                 &mut self.cfg,
                 &mut self.scopes.unwind_drops,
                 self.fn_span,
+                should_abort,
                 &mut None,
             );
         }
     }
 
-    fn build_generator_drop_trees(&mut self) {
+    fn build_generator_drop_trees(&mut self, should_abort: bool) {
         // Build the drop tree for dropping the generator while it's suspended.
         let drops = &mut self.scopes.generator_drops;
         let cfg = &mut self.cfg;
@@ -1280,7 +1281,7 @@ impl<'a, 'tcx: 'a> Builder<'a, 'tcx> {
         // Build the drop tree for unwinding in the normal control flow paths.
         let resume_block = &mut None;
         let unwind_drops = &mut self.scopes.unwind_drops;
-        Self::build_unwind_tree(cfg, unwind_drops, fn_span, resume_block);
+        Self::build_unwind_tree(cfg, unwind_drops, fn_span, should_abort, resume_block);
 
         // Build the drop tree for unwinding when dropping a suspended
         // generator.
@@ -1295,20 +1296,26 @@ impl<'a, 'tcx: 'a> Builder<'a, 'tcx> {
                 drops.entry_points.push((drop_data.1, blocks[drop_idx].unwrap()));
             }
         }
-        Self::build_unwind_tree(cfg, drops, fn_span, resume_block);
+        Self::build_unwind_tree(cfg, drops, fn_span, should_abort, resume_block);
     }
 
     fn build_unwind_tree(
         cfg: &mut CFG<'tcx>,
         drops: &mut DropTree,
         fn_span: Span,
+        should_abort: bool,
         resume_block: &mut Option<BasicBlock>,
     ) {
         let mut blocks = IndexVec::from_elem(None, &drops.drops);
         blocks[ROOT_NODE] = *resume_block;
         drops.build_mir::<Unwind>(cfg, &mut blocks);
         if let (None, Some(resume)) = (*resume_block, blocks[ROOT_NODE]) {
-            cfg.terminate(resume, SourceInfo::outermost(fn_span), TerminatorKind::Resume);
+            // `TerminatorKind::Abort` is used for `#[unwind(aborts)]`
+            // functions.
+            let terminator =
+                if should_abort { TerminatorKind::Abort } else { TerminatorKind::Resume };
+
+            cfg.terminate(resume, SourceInfo::outermost(fn_span), terminator);
 
             *resume_block = blocks[ROOT_NODE];
         }

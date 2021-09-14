@@ -1,6 +1,7 @@
 // run-pass
+#![feature(const_generics)]
 #![feature(const_generics_defaults)]
-#![allow(dead_code)]
+#![allow(incomplete_features, dead_code)]
 
 struct Both<T=u32, const N: usize=3> {
   arr: [T; N]

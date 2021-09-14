@@ -1,5 +1,6 @@
 // check-pass
 
+#![feature(bindings_after_at)]
 #![deny(unused_mut)]
 
 fn main() {

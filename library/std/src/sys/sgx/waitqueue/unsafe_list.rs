@@ -23,7 +23,6 @@ impl<T> UnsafeListEntry<T> {
     }
 }
 
-// WARNING: self-referential struct!
 pub struct UnsafeList<T> {
     head_tail: NonNull<UnsafeListEntry<T>>,
     head_tail_entry: Option<UnsafeListEntry<T>>,

@@ -1,10 +1,11 @@
 error[E0503]: cannot use `x` because it was mutably borrowed
-  --> $DIR/borrowck-non-exhaustive.rs:12:11
+  --> $DIR/borrowck-non-exhaustive.rs:13:9
    |
 LL |     let y = &mut x;
    |             ------ borrow of `x` occurs here
 LL |     match x {
-   |           ^ use of borrowed `x`
+LL |         NonExhaustiveMonovariant::Variant(_) => {},
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ use of borrowed `x`
 ...
 LL |     drop(y);
    |          - borrow later used here

@@ -1,7 +1,11 @@
+// ignore-tidy-filelength
+// This file almost exclusively consists of the definition of `Iterator`. We
+// can't split that into multiple files.
+
 use crate::cmp::{self, Ordering};
 use crate::ops::{ControlFlow, Try};
 
-use super::super::TrustedRandomAccessNoCoerce;
+use super::super::TrustedRandomAccess;
 use super::super::{Chain, Cloned, Copied, Cycle, Enumerate, Filter, FilterMap, Fuse};
 use super::super::{FlatMap, Flatten};
 use super::super::{FromIterator, Intersperse, IntersperseWith, Product, Sum, Zip};
@@ -535,6 +539,8 @@ pub trait Iterator {
     /// Basic usage:
     ///
     /// ```
+    /// #![feature(iter_intersperse)]
+    ///
     /// let mut a = [0, 1, 2].iter().intersperse(&100);
     /// assert_eq!(a.next(), Some(&0));   // The first element from `a`.
     /// assert_eq!(a.next(), Some(&100)); // The separator.
@@ -545,8 +551,9 @@ pub trait Iterator {
     /// ```
     ///
     /// `intersperse` can be very useful to join an iterator's items using a common element:
-    ///
     /// ```
+    /// #![feature(iter_intersperse)]
+    ///
     /// let hello = ["Hello", "World", "!"].iter().copied().intersperse(" ").collect::<String>();
     /// assert_eq!(hello, "Hello World !");
     /// ```
@@ -554,7 +561,7 @@ pub trait Iterator {
     /// [`Clone`]: crate::clone::Clone
     /// [`intersperse_with`]: Iterator::intersperse_with
     #[inline]
-    #[stable(feature = "iter_intersperse", since = "1.56.0")]
+    #[unstable(feature = "iter_intersperse", reason = "recently added", issue = "79524")]
     fn intersperse(self, separator: Self::Item) -> Intersperse<Self>
     where
         Self: Sized,
@@ -579,6 +586,8 @@ pub trait Iterator {
     /// Basic usage:
     ///
     /// ```
+    /// #![feature(iter_intersperse)]
+    ///
     /// #[derive(PartialEq, Debug)]
     /// struct NotClone(usize);
     ///
@@ -595,8 +604,9 @@ pub trait Iterator {
     ///
     /// `intersperse_with` can be used in situations where the separator needs
     /// to be computed:
-    ///
     /// ```
+    /// #![feature(iter_intersperse)]
+    ///
     /// let src = ["Hello", "to", "all", "people", "!!"].iter().copied();
     ///
     /// // The closure mutably borrows its context to generate an item.
@@ -609,7 +619,7 @@ pub trait Iterator {
     /// [`Clone`]: crate::clone::Clone
     /// [`intersperse`]: Iterator::intersperse
     #[inline]
-    #[stable(feature = "iter_intersperse", since = "1.56.0")]
+    #[unstable(feature = "iter_intersperse", reason = "recently added", issue = "79524")]
     fn intersperse_with<G>(self, separator: G) -> IntersperseWith<Self, G>
     where
         Self: Sized,
@@ -684,7 +694,7 @@ pub trait Iterator {
     /// more idiomatic to use a `for` loop, but `for_each` may be more legible
     /// when processing items at the end of longer iterator chains. In some
     /// cases `for_each` may also be faster than a loop, because it will use
-    /// internal iteration on adapters like `Chain`.
+    /// internal iteration on adaptors like `Chain`.
     ///
     /// [`for`]: ../../book/ch03-05-control-flow.html#looping-through-a-collection-with-for
     ///
@@ -1283,7 +1293,7 @@ pub trait Iterator {
         Take::new(self, n)
     }
 
-    /// An iterator adapter similar to [`fold`] that holds internal state and
+    /// An iterator adaptor similar to [`fold`] that holds internal state and
     /// produces a new iterator.
     ///
     /// [`fold`]: Iterator::fold
@@ -1594,7 +1604,7 @@ pub trait Iterator {
 
     /// Borrows an iterator, rather than consuming it.
     ///
-    /// This is useful to allow applying iterator adapters while still
+    /// This is useful to allow applying iterator adaptors while still
     /// retaining ownership of the original iterator.
     ///
     /// # Examples
@@ -1951,8 +1961,8 @@ pub trait Iterator {
     /// assert_eq!(it.next(), Some(&40));
     /// ```
     ///
-    /// While you cannot `break` from a closure, the [`ControlFlow`] type allows
-    /// a similar idea:
+    /// While you cannot `break` from a closure, the [`crate::ops::ControlFlow`]
+    /// type allows a similar idea:
     ///
     /// ```
     /// use std::ops::ControlFlow;
@@ -2018,8 +2028,8 @@ pub trait Iterator {
     /// assert_eq!(it.next(), Some("stale_bread.json"));
     /// ```
     ///
-    /// The [`ControlFlow`] type can be used with this method for the situations
-    /// in which you'd use `break` and `continue` in a normal loop:
+    /// The [`crate::ops::ControlFlow`] type can be used with this method for the
+    /// situations in which you'd use `break` and `continue` in a normal loop:
     ///
     /// ```
     /// use std::ops::ControlFlow;
@@ -2068,7 +2078,7 @@ pub trait Iterator {
     /// to produce a single value from it.
     ///
     /// Note: `fold()`, and similar methods that traverse the entire iterator,
-    /// might not terminate for infinite iterators, even on traits for which a
+    /// may not terminate for infinite iterators, even on traits for which a
     /// result is determinable in finite time.
     ///
     /// Note: [`reduce()`] can be used to use the first element as the initial
@@ -2436,14 +2446,14 @@ pub trait Iterator {
         R: Try<Output = bool>,
         // FIXME: This bound is rather strange, but means minimal breakage on nightly.
         // See #85115 for the issue tracking a holistic solution for this and try_map.
-        R: Try<Residual = Result<crate::convert::Infallible, E>>,
+        R: crate::ops::TryV2<Residual = Result<crate::convert::Infallible, E>>,
     {
         #[inline]
         fn check<F, T, R, E>(mut f: F) -> impl FnMut((), T) -> ControlFlow<Result<T, E>>
         where
             F: FnMut(&T) -> R,
             R: Try<Output = bool>,
-            R: Try<Residual = Result<crate::convert::Infallible, E>>,
+            R: crate::ops::TryV2<Residual = Result<crate::convert::Infallible, E>>,
         {
             move |(), x| match f(&x).branch() {
                 ControlFlow::Continue(false) => ControlFlow::CONTINUE,
@@ -2835,14 +2845,6 @@ pub trait Iterator {
     ///
     /// assert_eq!(left, [1, 3]);
     /// assert_eq!(right, [2, 4]);
-    ///
-    /// // you can also unzip multiple nested tuples at once
-    /// let a = [(1, (2, 3)), (4, (5, 6))];
-    ///
-    /// let (x, (y, z)): (Vec<_>, (Vec<_>, Vec<_>)) = a.iter().cloned().unzip();
-    /// assert_eq!(x, [1, 4]);
-    /// assert_eq!(y, [2, 5]);
-    /// assert_eq!(z, [3, 6]);
     /// ```
     #[stable(feature = "rust1", since = "1.0.0")]
     fn unzip<A, B, FromA, FromB>(self) -> (FromA, FromB)
@@ -2851,9 +2853,28 @@ pub trait Iterator {
         FromB: Default + Extend<B>,
         Self: Sized + Iterator<Item = (A, B)>,
     {
-        let mut unzipped: (FromA, FromB) = Default::default();
-        unzipped.extend(self);
-        unzipped
+        fn extend<'a, A, B>(
+            ts: &'a mut impl Extend<A>,
+            us: &'a mut impl Extend<B>,
+        ) -> impl FnMut((), (A, B)) + 'a {
+            move |(), (t, u)| {
+                ts.extend_one(t);
+                us.extend_one(u);
+            }
+        }
+
+        let mut ts: FromA = Default::default();
+        let mut us: FromB = Default::default();
+
+        let (lower_bound, _) = self.size_hint();
+        if lower_bound > 0 {
+            ts.extend_reserve(lower_bound);
+            us.extend_reserve(lower_bound);
+        }
+
+        self.fold((), extend(&mut ts, &mut us));
+
+        (ts, us)
     }
 
     /// Creates an iterator which copies all of its elements.
@@ -3435,7 +3456,7 @@ pub trait Iterator {
         self.map(f).is_sorted()
     }
 
-    /// See [TrustedRandomAccess][super::super::TrustedRandomAccess]
+    /// See [TrustedRandomAccess]
     // The unusual name is to avoid name collisions in method resolution
     // see #76479.
     #[inline]
@@ -3443,7 +3464,7 @@ pub trait Iterator {
     #[unstable(feature = "trusted_random_access", issue = "none")]
     unsafe fn __iterator_get_unchecked(&mut self, _idx: usize) -> Self::Item
     where
-        Self: TrustedRandomAccessNoCoerce,
+        Self: TrustedRandomAccess,
     {
         unreachable!("Always specialized");
     }

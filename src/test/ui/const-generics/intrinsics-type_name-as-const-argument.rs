@@ -1,8 +1,7 @@
-// [full] check-pass
 // revisions: full min
 
 #![cfg_attr(full, allow(incomplete_features))]
-#![cfg_attr(full, feature(adt_const_params, generic_const_exprs))]
+#![cfg_attr(full, feature(const_generics))]
 
 #![feature(core_intrinsics)]
 #![feature(const_type_name)]
@@ -14,6 +13,7 @@ struct Bug<T>
 where
     T: Trait<{std::intrinsics::type_name::<T>()}>
     //[min]~^ ERROR generic parameters may not be used in const operations
+    //[full]~^^ ERROR constant expression depends on a generic parameter
 {
     t: T
 }

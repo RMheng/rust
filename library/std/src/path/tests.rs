@@ -1,11 +1,9 @@
 use super::*;
 
-use crate::collections::BTreeSet;
 use crate::rc::Rc;
 use crate::sync::Arc;
-use core::hint::black_box;
 
-macro_rules! t (
+macro_rules! t(
     ($path:expr, iter: $iter:expr) => (
         {
             let path = Path::new($path);
@@ -75,33 +73,15 @@ macro_rules! t (
         }
     );
 
-    ($path:expr, file_prefix: $file_prefix:expr, extension: $extension:expr) => (
-        {
-            let path = Path::new($path);
-
-            let prefix = path.file_prefix().map(|p| p.to_str().unwrap());
-            let exp_prefix: Option<&str> = $file_prefix;
-            assert!(prefix == exp_prefix, "file_prefix: Expected {:?}, found {:?}",
-                    exp_prefix, prefix);
-
-            let ext = path.extension().map(|p| p.to_str().unwrap());
-            let exp_ext: Option<&str> = $extension;
-            assert!(ext == exp_ext, "extension: Expected {:?}, found {:?}",
-                    exp_ext, ext);
-        }
-    );
-
     ($path:expr, iter: $iter:expr,
                  has_root: $has_root:expr, is_absolute: $is_absolute:expr,
                  parent: $parent:expr, file_name: $file:expr,
-                 file_stem: $file_stem:expr, extension: $extension:expr,
-                 file_prefix: $file_prefix:expr) => (
+                 file_stem: $file_stem:expr, extension: $extension:expr) => (
         {
             t!($path, iter: $iter);
             t!($path, has_root: $has_root, is_absolute: $is_absolute);
             t!($path, parent: $parent, file_name: $file);
             t!($path, file_stem: $file_stem, extension: $extension);
-            t!($path, file_prefix: $file_prefix, extension: $extension);
         }
     );
 );
@@ -136,8 +116,7 @@ pub fn test_decompositions_unix() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("foo",
@@ -147,8 +126,7 @@ pub fn test_decompositions_unix() {
     parent: Some(""),
     file_name: Some("foo"),
     file_stem: Some("foo"),
-    extension: None,
-    file_prefix: Some("foo")
+    extension: None
     );
 
     t!("/",
@@ -158,8 +136,7 @@ pub fn test_decompositions_unix() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("/foo",
@@ -169,8 +146,7 @@ pub fn test_decompositions_unix() {
     parent: Some("/"),
     file_name: Some("foo"),
     file_stem: Some("foo"),
-    extension: None,
-    file_prefix: Some("foo")
+    extension: None
     );
 
     t!("foo/",
@@ -180,8 +156,7 @@ pub fn test_decompositions_unix() {
     parent: Some(""),
     file_name: Some("foo"),
     file_stem: Some("foo"),
-    extension: None,
-    file_prefix: Some("foo")
+    extension: None
     );
 
     t!("/foo/",
@@ -191,8 +166,7 @@ pub fn test_decompositions_unix() {
     parent: Some("/"),
     file_name: Some("foo"),
     file_stem: Some("foo"),
-    extension: None,
-    file_prefix: Some("foo")
+    extension: None
     );
 
     t!("foo/bar",
@@ -202,8 +176,7 @@ pub fn test_decompositions_unix() {
     parent: Some("foo"),
     file_name: Some("bar"),
     file_stem: Some("bar"),
-    extension: None,
-    file_prefix: Some("bar")
+    extension: None
     );
 
     t!("/foo/bar",
@@ -213,8 +186,7 @@ pub fn test_decompositions_unix() {
     parent: Some("/foo"),
     file_name: Some("bar"),
     file_stem: Some("bar"),
-    extension: None,
-    file_prefix: Some("bar")
+    extension: None
     );
 
     t!("///foo///",
@@ -224,8 +196,7 @@ pub fn test_decompositions_unix() {
     parent: Some("/"),
     file_name: Some("foo"),
     file_stem: Some("foo"),
-    extension: None,
-    file_prefix: Some("foo")
+    extension: None
     );
 
     t!("///foo///bar",
@@ -235,8 +206,7 @@ pub fn test_decompositions_unix() {
     parent: Some("///foo"),
     file_name: Some("bar"),
     file_stem: Some("bar"),
-    extension: None,
-    file_prefix: Some("bar")
+    extension: None
     );
 
     t!("./.",
@@ -246,8 +216,7 @@ pub fn test_decompositions_unix() {
     parent: Some(""),
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("/..",
@@ -257,8 +226,7 @@ pub fn test_decompositions_unix() {
     parent: Some("/"),
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("../",
@@ -268,8 +236,7 @@ pub fn test_decompositions_unix() {
     parent: Some(""),
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("foo/.",
@@ -279,8 +246,7 @@ pub fn test_decompositions_unix() {
     parent: Some(""),
     file_name: Some("foo"),
     file_stem: Some("foo"),
-    extension: None,
-    file_prefix: Some("foo")
+    extension: None
     );
 
     t!("foo/..",
@@ -290,8 +256,7 @@ pub fn test_decompositions_unix() {
     parent: Some("foo"),
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("foo/./",
@@ -301,8 +266,7 @@ pub fn test_decompositions_unix() {
     parent: Some(""),
     file_name: Some("foo"),
     file_stem: Some("foo"),
-    extension: None,
-    file_prefix: Some("foo")
+    extension: None
     );
 
     t!("foo/./bar",
@@ -312,8 +276,7 @@ pub fn test_decompositions_unix() {
     parent: Some("foo"),
     file_name: Some("bar"),
     file_stem: Some("bar"),
-    extension: None,
-    file_prefix: Some("bar")
+    extension: None
     );
 
     t!("foo/../",
@@ -323,8 +286,7 @@ pub fn test_decompositions_unix() {
     parent: Some("foo"),
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("foo/../bar",
@@ -334,8 +296,7 @@ pub fn test_decompositions_unix() {
     parent: Some("foo/.."),
     file_name: Some("bar"),
     file_stem: Some("bar"),
-    extension: None,
-    file_prefix: Some("bar")
+    extension: None
     );
 
     t!("./a",
@@ -345,8 +306,7 @@ pub fn test_decompositions_unix() {
     parent: Some("."),
     file_name: Some("a"),
     file_stem: Some("a"),
-    extension: None,
-    file_prefix: Some("a")
+    extension: None
     );
 
     t!(".",
@@ -356,8 +316,7 @@ pub fn test_decompositions_unix() {
     parent: Some(""),
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("./",
@@ -367,8 +326,7 @@ pub fn test_decompositions_unix() {
     parent: Some(""),
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("a/b",
@@ -378,8 +336,7 @@ pub fn test_decompositions_unix() {
     parent: Some("a"),
     file_name: Some("b"),
     file_stem: Some("b"),
-    extension: None,
-    file_prefix: Some("b")
+    extension: None
     );
 
     t!("a//b",
@@ -389,8 +346,7 @@ pub fn test_decompositions_unix() {
     parent: Some("a"),
     file_name: Some("b"),
     file_stem: Some("b"),
-    extension: None,
-    file_prefix: Some("b")
+    extension: None
     );
 
     t!("a/./b",
@@ -400,8 +356,7 @@ pub fn test_decompositions_unix() {
     parent: Some("a"),
     file_name: Some("b"),
     file_stem: Some("b"),
-    extension: None,
-    file_prefix: Some("b")
+    extension: None
     );
 
     t!("a/b/c",
@@ -411,8 +366,7 @@ pub fn test_decompositions_unix() {
     parent: Some("a/b"),
     file_name: Some("c"),
     file_stem: Some("c"),
-    extension: None,
-    file_prefix: Some("c")
+    extension: None
     );
 
     t!(".foo",
@@ -422,41 +376,7 @@ pub fn test_decompositions_unix() {
     parent: Some(""),
     file_name: Some(".foo"),
     file_stem: Some(".foo"),
-    extension: None,
-    file_prefix: Some(".foo")
-    );
-
-    t!("a/.foo",
-    iter: ["a", ".foo"],
-    has_root: false,
-    is_absolute: false,
-    parent: Some("a"),
-    file_name: Some(".foo"),
-    file_stem: Some(".foo"),
-    extension: None,
-    file_prefix: Some(".foo")
-    );
-
-    t!("a/.rustfmt.toml",
-    iter: ["a", ".rustfmt.toml"],
-    has_root: false,
-    is_absolute: false,
-    parent: Some("a"),
-    file_name: Some(".rustfmt.toml"),
-    file_stem: Some(".rustfmt"),
-    extension: Some("toml"),
-    file_prefix: Some(".rustfmt")
-    );
-
-    t!("a/.x.y.z",
-    iter: ["a", ".x.y.z"],
-    has_root: false,
-    is_absolute: false,
-    parent: Some("a"),
-    file_name: Some(".x.y.z"),
-    file_stem: Some(".x.y"),
-    extension: Some("z"),
-    file_prefix: Some(".x")
+    extension: None
     );
 }
 
@@ -470,8 +390,7 @@ pub fn test_decompositions_windows() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("foo",
@@ -481,8 +400,7 @@ pub fn test_decompositions_windows() {
     parent: Some(""),
     file_name: Some("foo"),
     file_stem: Some("foo"),
-    extension: None,
-    file_prefix: Some("foo")
+    extension: None
     );
 
     t!("/",
@@ -492,8 +410,7 @@ pub fn test_decompositions_windows() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("\\",
@@ -503,8 +420,7 @@ pub fn test_decompositions_windows() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("c:",
@@ -514,8 +430,7 @@ pub fn test_decompositions_windows() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("c:\\",
@@ -525,8 +440,7 @@ pub fn test_decompositions_windows() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("c:/",
@@ -536,8 +450,7 @@ pub fn test_decompositions_windows() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("/foo",
@@ -547,8 +460,7 @@ pub fn test_decompositions_windows() {
     parent: Some("/"),
     file_name: Some("foo"),
     file_stem: Some("foo"),
-    extension: None,
-    file_prefix: Some("foo")
+    extension: None
     );
 
     t!("foo/",
@@ -558,8 +470,7 @@ pub fn test_decompositions_windows() {
     parent: Some(""),
     file_name: Some("foo"),
     file_stem: Some("foo"),
-    extension: None,
-    file_prefix: Some("foo")
+    extension: None
     );
 
     t!("/foo/",
@@ -569,8 +480,7 @@ pub fn test_decompositions_windows() {
     parent: Some("/"),
     file_name: Some("foo"),
     file_stem: Some("foo"),
-    extension: None,
-    file_prefix: Some("foo")
+    extension: None
     );
 
     t!("foo/bar",
@@ -580,8 +490,7 @@ pub fn test_decompositions_windows() {
     parent: Some("foo"),
     file_name: Some("bar"),
     file_stem: Some("bar"),
-    extension: None,
-    file_prefix: Some("bar")
+    extension: None
     );
 
     t!("/foo/bar",
@@ -591,8 +500,7 @@ pub fn test_decompositions_windows() {
     parent: Some("/foo"),
     file_name: Some("bar"),
     file_stem: Some("bar"),
-    extension: None,
-    file_prefix: Some("bar")
+    extension: None
     );
 
     t!("///foo///",
@@ -602,8 +510,7 @@ pub fn test_decompositions_windows() {
     parent: Some("/"),
     file_name: Some("foo"),
     file_stem: Some("foo"),
-    extension: None,
-    file_prefix: Some("foo")
+    extension: None
     );
 
     t!("///foo///bar",
@@ -613,8 +520,7 @@ pub fn test_decompositions_windows() {
     parent: Some("///foo"),
     file_name: Some("bar"),
     file_stem: Some("bar"),
-    extension: None,
-    file_prefix: Some("bar")
+    extension: None
     );
 
     t!("./.",
@@ -624,8 +530,7 @@ pub fn test_decompositions_windows() {
     parent: Some(""),
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("/..",
@@ -635,8 +540,7 @@ pub fn test_decompositions_windows() {
     parent: Some("/"),
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("../",
@@ -646,8 +550,7 @@ pub fn test_decompositions_windows() {
     parent: Some(""),
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("foo/.",
@@ -657,8 +560,7 @@ pub fn test_decompositions_windows() {
     parent: Some(""),
     file_name: Some("foo"),
     file_stem: Some("foo"),
-    extension: None,
-    file_prefix: Some("foo")
+    extension: None
     );
 
     t!("foo/..",
@@ -668,8 +570,7 @@ pub fn test_decompositions_windows() {
     parent: Some("foo"),
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("foo/./",
@@ -679,8 +580,7 @@ pub fn test_decompositions_windows() {
     parent: Some(""),
     file_name: Some("foo"),
     file_stem: Some("foo"),
-    extension: None,
-    file_prefix: Some("foo")
+    extension: None
     );
 
     t!("foo/./bar",
@@ -690,8 +590,7 @@ pub fn test_decompositions_windows() {
     parent: Some("foo"),
     file_name: Some("bar"),
     file_stem: Some("bar"),
-    extension: None,
-    file_prefix: Some("bar")
+    extension: None
     );
 
     t!("foo/../",
@@ -701,8 +600,7 @@ pub fn test_decompositions_windows() {
     parent: Some("foo"),
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("foo/../bar",
@@ -712,8 +610,7 @@ pub fn test_decompositions_windows() {
     parent: Some("foo/.."),
     file_name: Some("bar"),
     file_stem: Some("bar"),
-    extension: None,
-    file_prefix: Some("bar")
+    extension: None
     );
 
     t!("./a",
@@ -723,8 +620,7 @@ pub fn test_decompositions_windows() {
     parent: Some("."),
     file_name: Some("a"),
     file_stem: Some("a"),
-    extension: None,
-    file_prefix: Some("a")
+    extension: None
     );
 
     t!(".",
@@ -734,8 +630,7 @@ pub fn test_decompositions_windows() {
     parent: Some(""),
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("./",
@@ -745,8 +640,7 @@ pub fn test_decompositions_windows() {
     parent: Some(""),
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("a/b",
@@ -756,8 +650,7 @@ pub fn test_decompositions_windows() {
     parent: Some("a"),
     file_name: Some("b"),
     file_stem: Some("b"),
-    extension: None,
-    file_prefix: Some("b")
+    extension: None
     );
 
     t!("a//b",
@@ -767,8 +660,7 @@ pub fn test_decompositions_windows() {
     parent: Some("a"),
     file_name: Some("b"),
     file_stem: Some("b"),
-    extension: None,
-    file_prefix: Some("b")
+    extension: None
     );
 
     t!("a/./b",
@@ -778,8 +670,7 @@ pub fn test_decompositions_windows() {
     parent: Some("a"),
     file_name: Some("b"),
     file_stem: Some("b"),
-    extension: None,
-    file_prefix: Some("b")
+    extension: None
     );
 
     t!("a/b/c",
@@ -789,9 +680,7 @@ pub fn test_decompositions_windows() {
        parent: Some("a/b"),
        file_name: Some("c"),
        file_stem: Some("c"),
-       extension: None,
-       file_prefix: Some("c")
-    );
+       extension: None);
 
     t!("a\\b\\c",
     iter: ["a", "b", "c"],
@@ -800,8 +689,7 @@ pub fn test_decompositions_windows() {
     parent: Some("a\\b"),
     file_name: Some("c"),
     file_stem: Some("c"),
-    extension: None,
-    file_prefix: Some("c")
+    extension: None
     );
 
     t!("\\a",
@@ -811,8 +699,7 @@ pub fn test_decompositions_windows() {
     parent: Some("\\"),
     file_name: Some("a"),
     file_stem: Some("a"),
-    extension: None,
-    file_prefix: Some("a")
+    extension: None
     );
 
     t!("c:\\foo.txt",
@@ -822,8 +709,7 @@ pub fn test_decompositions_windows() {
     parent: Some("c:\\"),
     file_name: Some("foo.txt"),
     file_stem: Some("foo"),
-    extension: Some("txt"),
-    file_prefix: Some("foo")
+    extension: Some("txt")
     );
 
     t!("\\\\server\\share\\foo.txt",
@@ -833,8 +719,7 @@ pub fn test_decompositions_windows() {
     parent: Some("\\\\server\\share\\"),
     file_name: Some("foo.txt"),
     file_stem: Some("foo"),
-    extension: Some("txt"),
-    file_prefix: Some("foo")
+    extension: Some("txt")
     );
 
     t!("\\\\server\\share",
@@ -844,8 +729,7 @@ pub fn test_decompositions_windows() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("\\\\server",
@@ -855,8 +739,7 @@ pub fn test_decompositions_windows() {
     parent: Some("\\"),
     file_name: Some("server"),
     file_stem: Some("server"),
-    extension: None,
-    file_prefix: Some("server")
+    extension: None
     );
 
     t!("\\\\?\\bar\\foo.txt",
@@ -866,8 +749,7 @@ pub fn test_decompositions_windows() {
     parent: Some("\\\\?\\bar\\"),
     file_name: Some("foo.txt"),
     file_stem: Some("foo"),
-    extension: Some("txt"),
-    file_prefix: Some("foo")
+    extension: Some("txt")
     );
 
     t!("\\\\?\\bar",
@@ -877,8 +759,7 @@ pub fn test_decompositions_windows() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("\\\\?\\",
@@ -888,8 +769,7 @@ pub fn test_decompositions_windows() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("\\\\?\\UNC\\server\\share\\foo.txt",
@@ -899,8 +779,7 @@ pub fn test_decompositions_windows() {
     parent: Some("\\\\?\\UNC\\server\\share\\"),
     file_name: Some("foo.txt"),
     file_stem: Some("foo"),
-    extension: Some("txt"),
-    file_prefix: Some("foo")
+    extension: Some("txt")
     );
 
     t!("\\\\?\\UNC\\server",
@@ -910,8 +789,7 @@ pub fn test_decompositions_windows() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("\\\\?\\UNC\\",
@@ -921,8 +799,7 @@ pub fn test_decompositions_windows() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("\\\\?\\C:\\foo.txt",
@@ -932,8 +809,7 @@ pub fn test_decompositions_windows() {
     parent: Some("\\\\?\\C:\\"),
     file_name: Some("foo.txt"),
     file_stem: Some("foo"),
-    extension: Some("txt"),
-    file_prefix: Some("foo")
+    extension: Some("txt")
     );
 
     t!("\\\\?\\C:\\",
@@ -943,8 +819,7 @@ pub fn test_decompositions_windows() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("\\\\?\\C:",
@@ -954,8 +829,7 @@ pub fn test_decompositions_windows() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("\\\\?\\foo/bar",
@@ -965,8 +839,7 @@ pub fn test_decompositions_windows() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("\\\\?\\C:/foo",
@@ -976,8 +849,7 @@ pub fn test_decompositions_windows() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("\\\\.\\foo\\bar",
@@ -987,8 +859,7 @@ pub fn test_decompositions_windows() {
     parent: Some("\\\\.\\foo\\"),
     file_name: Some("bar"),
     file_stem: Some("bar"),
-    extension: None,
-    file_prefix: Some("bar")
+    extension: None
     );
 
     t!("\\\\.\\foo",
@@ -998,8 +869,7 @@ pub fn test_decompositions_windows() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("\\\\.\\foo/bar",
@@ -1009,8 +879,7 @@ pub fn test_decompositions_windows() {
     parent: Some("\\\\.\\foo/"),
     file_name: Some("bar"),
     file_stem: Some("bar"),
-    extension: None,
-    file_prefix: Some("bar")
+    extension: None
     );
 
     t!("\\\\.\\foo\\bar/baz",
@@ -1020,8 +889,7 @@ pub fn test_decompositions_windows() {
     parent: Some("\\\\.\\foo\\bar"),
     file_name: Some("baz"),
     file_stem: Some("baz"),
-    extension: None,
-    file_prefix: Some("baz")
+    extension: None
     );
 
     t!("\\\\.\\",
@@ -1031,8 +899,7 @@ pub fn test_decompositions_windows() {
     parent: None,
     file_name: None,
     file_stem: None,
-    extension: None,
-    file_prefix: None
+    extension: None
     );
 
     t!("\\\\?\\a\\b\\",
@@ -1042,52 +909,7 @@ pub fn test_decompositions_windows() {
     parent: Some("\\\\?\\a\\"),
     file_name: Some("b"),
     file_stem: Some("b"),
-    extension: None,
-    file_prefix: Some("b")
-    );
-
-    t!("\\\\?\\C:\\foo.txt.zip",
-    iter: ["\\\\?\\C:", "\\", "foo.txt.zip"],
-    has_root: true,
-    is_absolute: true,
-    parent: Some("\\\\?\\C:\\"),
-    file_name: Some("foo.txt.zip"),
-    file_stem: Some("foo.txt"),
-    extension: Some("zip"),
-    file_prefix: Some("foo")
-    );
-
-    t!("\\\\?\\C:\\.foo.txt.zip",
-    iter: ["\\\\?\\C:", "\\", ".foo.txt.zip"],
-    has_root: true,
-    is_absolute: true,
-    parent: Some("\\\\?\\C:\\"),
-    file_name: Some(".foo.txt.zip"),
-    file_stem: Some(".foo.txt"),
-    extension: Some("zip"),
-    file_prefix: Some(".foo")
-    );
-
-    t!("\\\\?\\C:\\.foo",
-    iter: ["\\\\?\\C:", "\\", ".foo"],
-    has_root: true,
-    is_absolute: true,
-    parent: Some("\\\\?\\C:\\"),
-    file_name: Some(".foo"),
-    file_stem: Some(".foo"),
-    extension: None,
-    file_prefix: Some(".foo")
-    );
-
-    t!("a/.x.y.z",
-    iter: ["a", ".x.y.z"],
-    has_root: false,
-    is_absolute: false,
-    parent: Some("a"),
-    file_name: Some(".x.y.z"),
-    file_stem: Some(".x.y"),
-    extension: Some("z"),
-    file_prefix: Some(".x")
+    extension: None
     );
 }
 
@@ -1127,59 +949,12 @@ pub fn test_stem_ext() {
 
     t!("..", file_stem: None, extension: None);
 
-    t!(".x.y.z", file_stem: Some(".x.y"), extension: Some("z"));
-
-    t!("..x.y.z", file_stem: Some("..x.y"), extension: Some("z"));
-
     t!("", file_stem: None, extension: None);
 }
 
 #[test]
-pub fn test_prefix_ext() {
-    t!("foo",
-    file_prefix: Some("foo"),
-    extension: None
-    );
-
-    t!("foo.",
-    file_prefix: Some("foo"),
-    extension: Some("")
-    );
-
-    t!(".foo",
-    file_prefix: Some(".foo"),
-    extension: None
-    );
-
-    t!("foo.txt",
-    file_prefix: Some("foo"),
-    extension: Some("txt")
-    );
-
-    t!("foo.bar.txt",
-    file_prefix: Some("foo"),
-    extension: Some("txt")
-    );
-
-    t!("foo.bar.",
-    file_prefix: Some("foo"),
-    extension: Some("")
-    );
-
-    t!(".", file_prefix: None, extension: None);
-
-    t!("..", file_prefix: None, extension: None);
-
-    t!(".x.y.z", file_prefix: Some(".x"), extension: Some("z"));
-
-    t!("..x.y.z", file_prefix: Some("."), extension: Some("z"));
-
-    t!("", file_prefix: None, extension: None);
-}
-
-#[test]
 pub fn test_push() {
-    macro_rules! tp (
+    macro_rules! tp(
         ($path:expr, $push:expr, $expected:expr) => ( {
             let mut actual = PathBuf::from($path);
             actual.push($push);
@@ -1267,7 +1042,7 @@ pub fn test_push() {
 
 #[test]
 pub fn test_pop() {
-    macro_rules! tp (
+    macro_rules! tp(
         ($path:expr, $expected:expr, $output:expr) => ( {
             let mut actual = PathBuf::from($path);
             let output = actual.pop();
@@ -1321,7 +1096,7 @@ pub fn test_pop() {
 
 #[test]
 pub fn test_set_file_name() {
-    macro_rules! tfn (
+    macro_rules! tfn(
             ($path:expr, $file:expr, $expected:expr) => ( {
             let mut p = PathBuf::from($path);
             p.set_file_name($file);
@@ -1355,7 +1130,7 @@ pub fn test_set_file_name() {
 
 #[test]
 pub fn test_set_extension() {
-    macro_rules! tfe (
+    macro_rules! tfe(
             ($path:expr, $ext:expr, $expected:expr, $output:expr) => ( {
             let mut p = PathBuf::from($path);
             let output = p.set_extension($ext);
@@ -1417,7 +1192,7 @@ pub fn test_compare() {
         s.finish()
     }
 
-    macro_rules! tc (
+    macro_rules! tc(
         ($path1:expr, $path2:expr, eq: $eq:expr,
          starts_with: $starts_with:expr, ends_with: $ends_with:expr,
          relative_from: $relative_from:expr) => ({
@@ -1616,70 +1391,4 @@ fn into_rc() {
 
     assert_eq!(&*rc2, path);
     assert_eq!(&*arc2, path);
-}
-
-#[test]
-fn test_ord() {
-    macro_rules! ord(
-        ($ord:ident, $left:expr, $right:expr) => ( {
-            assert_eq!(Path::new($left).cmp(&Path::new($right)), core::cmp::Ordering::$ord);
-        });
-    );
-
-    ord!(Less, "1", "2");
-    ord!(Less, "/foo/bar", "/foo./bar");
-    ord!(Less, "foo/bar", "foo/bar.");
-    ord!(Equal, "foo/./bar", "foo/bar/");
-    ord!(Equal, "foo/bar", "foo/bar/");
-    ord!(Equal, "foo/bar", "foo/bar/.");
-    ord!(Equal, "foo/bar", "foo/bar//");
-}
-
-#[bench]
-fn bench_path_cmp_fast_path_buf_sort(b: &mut test::Bencher) {
-    let prefix = "my/home";
-    let mut paths: Vec<_> =
-        (0..1000).map(|num| PathBuf::from(prefix).join(format!("file {}.rs", num))).collect();
-
-    paths.sort();
-
-    b.iter(|| {
-        black_box(paths.as_mut_slice()).sort_unstable();
-    });
-}
-
-#[bench]
-fn bench_path_cmp_fast_path_long(b: &mut test::Bencher) {
-    let prefix = "/my/home/is/my/castle/and/my/castle/has/a/rusty/workbench/";
-    let paths: Vec<_> =
-        (0..1000).map(|num| PathBuf::from(prefix).join(format!("file {}.rs", num))).collect();
-
-    let mut set = BTreeSet::new();
-
-    paths.iter().for_each(|p| {
-        set.insert(p.as_path());
-    });
-
-    b.iter(|| {
-        set.remove(paths[500].as_path());
-        set.insert(paths[500].as_path());
-    });
-}
-
-#[bench]
-fn bench_path_cmp_fast_path_short(b: &mut test::Bencher) {
-    let prefix = "my/home";
-    let paths: Vec<_> =
-        (0..1000).map(|num| PathBuf::from(prefix).join(format!("file {}.rs", num))).collect();
-
-    let mut set = BTreeSet::new();
-
-    paths.iter().for_each(|p| {
-        set.insert(p.as_path());
-    });
-
-    b.iter(|| {
-        set.remove(paths[500].as_path());
-        set.insert(paths[500].as_path());
-    });
 }

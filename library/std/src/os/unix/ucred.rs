@@ -28,12 +28,7 @@ pub struct UCred {
 #[cfg(any(target_os = "android", target_os = "linux"))]
 pub use self::impl_linux::peer_cred;
 
-#[cfg(any(
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "openbsd",
-    target_os = "netbsd"
-))]
+#[cfg(any(target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
 pub use self::impl_bsd::peer_cred;
 
 #[cfg(any(target_os = "macos", target_os = "ios",))]
@@ -75,12 +70,7 @@ pub mod impl_linux {
     }
 }
 
-#[cfg(any(
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "openbsd",
-    target_os = "netbsd"
-))]
+#[cfg(any(target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
 pub mod impl_bsd {
     use super::UCred;
     use crate::io;

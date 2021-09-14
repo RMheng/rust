@@ -1,4 +1,7 @@
 // run-pass
+// revisions: full min
+#![cfg_attr(full, feature(const_generics))]
+#![cfg_attr(full, allow(incomplete_features))]
 
 trait SliceExt<T: Clone> {
     fn array_windows_example<'a, const N: usize>(&'a self) -> ArrayWindowsExample<'a, T, N>;

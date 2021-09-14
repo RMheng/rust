@@ -1097,7 +1097,6 @@ pub enum DesugaringKind {
     Async,
     Await,
     ForLoop(ForLoopLoc),
-    LetElse,
 }
 
 /// A location in the desugaring of a `for` loop
@@ -1118,7 +1117,6 @@ impl DesugaringKind {
             DesugaringKind::TryBlock => "`try` block",
             DesugaringKind::OpaqueTy => "`impl Trait`",
             DesugaringKind::ForLoop(_) => "`for` loop",
-            DesugaringKind::LetElse => "`let...else`",
         }
     }
 }

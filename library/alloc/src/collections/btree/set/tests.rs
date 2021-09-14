@@ -16,6 +16,13 @@ fn test_clone_eq() {
     assert_eq!(m.clone(), m);
 }
 
+#[allow(dead_code)]
+fn test_const() {
+    const SET: &'static BTreeSet<()> = &BTreeSet::new();
+    const LEN: usize = SET.len();
+    const IS_EMPTY: bool = SET.is_empty();
+}
+
 #[test]
 fn test_iter_min_max() {
     let mut a = BTreeSet::new();
@@ -607,7 +614,7 @@ fn test_send() {
     }
 }
 
-#[test]
+#[allow(dead_code)]
 fn test_ord_absence() {
     fn set<K>(mut set: BTreeSet<K>) {
         set.is_empty();
@@ -626,12 +633,6 @@ fn test_ord_absence() {
     fn set_clone<K: Clone>(mut set: BTreeSet<K>) {
         set.clone_from(&set.clone());
     }
-
-    #[derive(Debug, Clone)]
-    struct NonOrd;
-    set(BTreeSet::<NonOrd>::new());
-    set_debug(BTreeSet::<NonOrd>::new());
-    set_clone(BTreeSet::<NonOrd>::default());
 }
 
 #[test]
@@ -736,11 +737,4 @@ fn test_split_off_large_random_sorted() {
 
     assert!(set.into_iter().eq(data.clone().into_iter().filter(|x| *x < key)));
     assert!(right.into_iter().eq(data.into_iter().filter(|x| *x >= key)));
-}
-
-#[test]
-fn from_array() {
-    let set = BTreeSet::from([1, 2, 3, 4]);
-    let unordered_duplicates = BTreeSet::from([4, 1, 4, 3, 2]);
-    assert_eq!(set, unordered_duplicates);
 }

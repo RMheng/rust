@@ -26,7 +26,6 @@ fn main() {
         || target.contains("vxworks")
         || target.contains("wasm32")
         || target.contains("asmjs")
-        || target.contains("espidf")
     {
         // These platforms don't have any special requirements.
     } else {

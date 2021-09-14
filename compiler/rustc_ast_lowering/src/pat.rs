@@ -62,10 +62,10 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
 
                         let fs = self.arena.alloc_from_iter(fields.iter().map(|f| hir::PatField {
                             hir_id: self.next_id(),
-                            ident: self.lower_ident(f.ident),
+                            ident: f.ident,
                             pat: self.lower_pat(&f.pat),
                             is_shorthand: f.is_shorthand,
-                            span: self.lower_span(f.span),
+                            span: f.span,
                         }));
                         break hir::PatKind::Struct(qpath, fs, etc);
                     }
@@ -247,16 +247,16 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
                 hir::PatKind::Binding(
                     self.lower_binding_mode(binding_mode),
                     self.lower_node_id(canonical_id),
-                    self.lower_ident(ident),
+                    ident,
                     lower_sub(self),
                 )
             }
             Some(res) => hir::PatKind::Path(hir::QPath::Resolved(
                 None,
                 self.arena.alloc(hir::Path {
-                    span: self.lower_span(ident.span),
+                    span: ident.span,
                     res: self.lower_res(res),
-                    segments: arena_vec![self; hir::PathSegment::from_ident(self.lower_ident(ident))],
+                    segments: arena_vec![self; hir::PathSegment::from_ident(ident)],
                 }),
             )),
         }
@@ -280,7 +280,7 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
         hir::Pat {
             hir_id: self.lower_node_id(p.id),
             kind,
-            span: self.lower_span(p.span),
+            span: p.span,
             default_binding_modes: true,
         }
     }

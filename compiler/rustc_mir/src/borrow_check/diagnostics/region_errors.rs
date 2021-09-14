@@ -75,8 +75,8 @@ crate enum RegionErrorKind<'tcx> {
         longer_fr: RegionVid,
         /// The region element that erroneously must be outlived by `longer_fr`.
         error_element: RegionElement,
-        /// The placeholder region.
-        placeholder: ty::PlaceholderRegion,
+        /// The origin of the placeholder region.
+        fr_origin: NllRegionVariableOrigin,
     },
 
     /// Any other lifetime error.
@@ -210,23 +210,25 @@ impl<'a, 'tcx> MirBorrowckCtxt<'a, 'tcx> {
 
                 RegionErrorKind::BoundUniversalRegionError {
                     longer_fr,
-                    placeholder,
+                    fr_origin,
                     error_element,
                 } => {
-                    let error_vid = self.regioncx.region_from_element(longer_fr, &error_element);
+                    let error_region = self.regioncx.region_from_element(longer_fr, error_element);
 
                     // Find the code to blame for the fact that `longer_fr` outlives `error_fr`.
                     let (_, span) = self.regioncx.find_outlives_blame_span(
                         &self.body,
                         longer_fr,
-                        NllRegionVariableOrigin::Placeholder(placeholder),
-                        error_vid,
+                        fr_origin,
+                        error_region,
                     );
 
-                    let universe = placeholder.universe;
-                    let universe_info = self.regioncx.universe_info(universe);
-
-                    universe_info.report_error(self, placeholder, error_element, span);
+                    // FIXME: improve this error message
+                    self.infcx
+                        .tcx
+                        .sess
+                        .struct_span_err(span, "higher-ranked subtype error")
+                        .buffer(&mut self.errors_buffer);
                 }
 
                 RegionErrorKind::RegionError { fr_origin, longer_fr, shorter_fr, is_reported } => {
@@ -423,7 +425,7 @@ impl<'a, 'tcx> MirBorrowckCtxt<'a, 'tcx> {
         diag
     }
 
-    /// Reports an error specifically for when data is escaping a closure.
+    /// Reports a error specifically for when data is escaping a closure.
     ///
     /// ```text
     /// error: borrowed data escapes outside of function
@@ -566,7 +568,7 @@ impl<'a, 'tcx> MirBorrowckCtxt<'a, 'tcx> {
         diag
     }
 
-    /// Adds a suggestion to errors where an `impl Trait` is returned.
+    /// Adds a suggestion to errors where a `impl Trait` is returned.
     ///
     /// ```text
     /// help: to allow this `impl Trait` to capture borrowed data with lifetime `'1`, add `'_` as

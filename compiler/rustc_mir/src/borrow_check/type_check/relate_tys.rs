@@ -6,7 +6,6 @@ use rustc_middle::ty::{self, Const, Ty};
 use rustc_trait_selection::traits::query::Fallible;
 
 use crate::borrow_check::constraints::OutlivesConstraint;
-use crate::borrow_check::diagnostics::UniverseInfo;
 use crate::borrow_check::type_check::{BorrowCheckContext, Locations};
 
 /// Adds sufficient constraints to ensure that `a R b` where `R` depends on `v`:
@@ -25,19 +24,12 @@ pub(super) fn relate_types<'tcx>(
     b: Ty<'tcx>,
     locations: Locations,
     category: ConstraintCategory,
-    borrowck_context: &mut BorrowCheckContext<'_, 'tcx>,
+    borrowck_context: Option<&mut BorrowCheckContext<'_, 'tcx>>,
 ) -> Fallible<()> {
     debug!("relate_types(a={:?}, v={:?}, b={:?}, locations={:?})", a, v, b, locations);
     TypeRelating::new(
         infcx,
-        NllTypeRelatingDelegate::new(
-            infcx,
-            borrowck_context,
-            param_env,
-            locations,
-            category,
-            UniverseInfo::relate(a, b),
-        ),
+        NllTypeRelatingDelegate::new(infcx, borrowck_context, param_env, locations, category),
         v,
     )
     .relate(a, b)?;
@@ -46,7 +38,7 @@ pub(super) fn relate_types<'tcx>(
 
 struct NllTypeRelatingDelegate<'me, 'bccx, 'tcx> {
     infcx: &'me InferCtxt<'me, 'tcx>,
-    borrowck_context: &'me mut BorrowCheckContext<'bccx, 'tcx>,
+    borrowck_context: Option<&'me mut BorrowCheckContext<'bccx, 'tcx>>,
 
     param_env: ty::ParamEnv<'tcx>,
 
@@ -55,22 +47,17 @@ struct NllTypeRelatingDelegate<'me, 'bccx, 'tcx> {
 
     /// What category do we assign the resulting `'a: 'b` relationships?
     category: ConstraintCategory,
-
-    /// Information so that error reporting knows what types we are relating
-    /// when reporting a bound region error.
-    universe_info: UniverseInfo<'tcx>,
 }
 
 impl NllTypeRelatingDelegate<'me, 'bccx, 'tcx> {
     fn new(
         infcx: &'me InferCtxt<'me, 'tcx>,
-        borrowck_context: &'me mut BorrowCheckContext<'bccx, 'tcx>,
+        borrowck_context: Option<&'me mut BorrowCheckContext<'bccx, 'tcx>>,
         param_env: ty::ParamEnv<'tcx>,
         locations: Locations,
         category: ConstraintCategory,
-        universe_info: UniverseInfo<'tcx>,
     ) -> Self {
-        Self { infcx, borrowck_context, param_env, locations, category, universe_info }
+        Self { infcx, borrowck_context, param_env, locations, category }
     }
 }
 
@@ -80,20 +67,24 @@ impl TypeRelatingDelegate<'tcx> for NllTypeRelatingDelegate<'_, '_, 'tcx> {
     }
 
     fn create_next_universe(&mut self) -> ty::UniverseIndex {
-        let info_universe =
-            self.borrowck_context.constraints.universe_causes.push(self.universe_info.clone());
-        let universe = self.infcx.create_next_universe();
-        assert_eq!(info_universe, universe);
-        universe
+        self.infcx.create_next_universe()
     }
 
     fn next_existential_region_var(&mut self, from_forall: bool) -> ty::Region<'tcx> {
-        let origin = NllRegionVariableOrigin::Existential { from_forall };
-        self.infcx.next_nll_region_var(origin)
+        if self.borrowck_context.is_some() {
+            let origin = NllRegionVariableOrigin::Existential { from_forall };
+            self.infcx.next_nll_region_var(origin)
+        } else {
+            self.infcx.tcx.lifetimes.re_erased
+        }
     }
 
     fn next_placeholder_region(&mut self, placeholder: ty::PlaceholderRegion) -> ty::Region<'tcx> {
-        self.borrowck_context.constraints.placeholder_region(self.infcx, placeholder)
+        if let Some(borrowck_context) = &mut self.borrowck_context {
+            borrowck_context.constraints.placeholder_region(self.infcx, placeholder)
+        } else {
+            self.infcx.tcx.lifetimes.re_erased
+        }
     }
 
     fn generalize_existential(&mut self, universe: ty::UniverseIndex) -> ty::Region<'tcx> {
@@ -109,15 +100,17 @@ impl TypeRelatingDelegate<'tcx> for NllTypeRelatingDelegate<'_, '_, 'tcx> {
         sub: ty::Region<'tcx>,
         info: ty::VarianceDiagInfo<'tcx>,
     ) {
-        let sub = self.borrowck_context.universal_regions.to_region_vid(sub);
-        let sup = self.borrowck_context.universal_regions.to_region_vid(sup);
-        self.borrowck_context.constraints.outlives_constraints.push(OutlivesConstraint {
-            sup,
-            sub,
-            locations: self.locations,
-            category: self.category,
-            variance_info: info,
-        });
+        if let Some(borrowck_context) = &mut self.borrowck_context {
+            let sub = borrowck_context.universal_regions.to_region_vid(sub);
+            let sup = borrowck_context.universal_regions.to_region_vid(sup);
+            borrowck_context.constraints.outlives_constraints.push(OutlivesConstraint {
+                sup,
+                sub,
+                locations: self.locations,
+                category: self.category,
+                variance_info: info,
+            });
+        }
     }
 
     // We don't have to worry about the equality of consts during borrow checking

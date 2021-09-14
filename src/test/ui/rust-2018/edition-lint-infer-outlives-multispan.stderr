@@ -11,9 +11,8 @@ LL | #![deny(explicit_outlives_requirements)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 help: remove these bounds
    |
-LL -     struct TeeOutlivesAyIsDebugBee<'a, 'b, T: 'a + Debug + 'b> {
-LL +     struct TeeOutlivesAyIsDebugBee<'a, 'b, T: Debug> {
-   | 
+LL |     struct TeeOutlivesAyIsDebugBee<'a, 'b, T: Debug> {
+   |                                              --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:18:61
@@ -23,9 +22,8 @@ LL |     struct TeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where T: 'a + Debug + 'b
    |
 help: remove these bounds
    |
-LL -     struct TeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where T: 'a + Debug + 'b {
-LL +     struct TeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where T: Debug {
-   | 
+LL |     struct TeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where T: Debug {
+   |                                                            --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:23:53
@@ -35,9 +33,8 @@ LL |     struct TeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: 'a + Debug + 'b> {
    |
 help: remove these bounds
    |
-LL -     struct TeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: 'a + Debug + 'b> {
-LL +     struct TeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: Debug> {
-   | 
+LL |     struct TeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: Debug> {
+   |                                                    --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:29:48
@@ -47,9 +44,8 @@ LL |     struct TeeOutlivesAyYooBeeIsDebug<'a, 'b, T: 'a, U: 'b + Debug> {
    |
 help: remove these bounds
    |
-LL -     struct TeeOutlivesAyYooBeeIsDebug<'a, 'b, T: 'a, U: 'b + Debug> {
-LL +     struct TeeOutlivesAyYooBeeIsDebug<'a, 'b, T, U: Debug> {
-   | 
+LL |     struct TeeOutlivesAyYooBeeIsDebug<'a, 'b, T, U: Debug> {
+   |                                               --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:35:48
@@ -59,9 +55,8 @@ LL |     struct TeeOutlivesAyYooIsDebugBee<'a, 'b, T: 'a, U: Debug + 'b> {
    |
 help: remove these bounds
    |
-LL -     struct TeeOutlivesAyYooIsDebugBee<'a, 'b, T: 'a, U: Debug + 'b> {
-LL +     struct TeeOutlivesAyYooIsDebugBee<'a, 'b, T, U: Debug> {
-   | 
+LL |     struct TeeOutlivesAyYooIsDebugBee<'a, 'b, T, U: Debug> {
+   |                                               --        --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:41:46
@@ -71,9 +66,8 @@ LL |     struct TeeOutlivesAyYooWhereBee<'a, 'b, T: 'a, U> where U: 'b {
    |
 help: remove these bounds
    |
-LL -     struct TeeOutlivesAyYooWhereBee<'a, 'b, T: 'a, U> where U: 'b {
-LL +     struct TeeOutlivesAyYooWhereBee<'a, 'b, T, U> {
-   | 
+LL |     struct TeeOutlivesAyYooWhereBee<'a, 'b, T, U> {
+   |                                             --  --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:47:67
@@ -83,9 +77,8 @@ LL |     struct TeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: 'a + Debu
    |
 help: remove these bounds
    |
-LL -     struct TeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: 'a + Debug + 'b {
-LL +     struct TeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: Debug {
-   | 
+LL |     struct TeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: Debug {
+   |                                                                  --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:53:53
@@ -95,9 +88,8 @@ LL |     struct TeeOutlivesAyYooWhereBeeIsDebug<'a, 'b, T: 'a, U> where U: 'b + 
    |
 help: remove these bounds
    |
-LL -     struct TeeOutlivesAyYooWhereBeeIsDebug<'a, 'b, T: 'a, U> where U: 'b + Debug {
-LL +     struct TeeOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U> where U: Debug {
-   | 
+LL |     struct TeeOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U> where U: Debug {
+   |                                                    --            --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:59:53
@@ -107,9 +99,8 @@ LL |     struct TeeOutlivesAyYooWhereIsDebugBee<'a, 'b, T: 'a, U> where U: Debug
    |
 help: remove these bounds
    |
-LL -     struct TeeOutlivesAyYooWhereIsDebugBee<'a, 'b, T: 'a, U> where U: Debug + 'b {
-LL +     struct TeeOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U> where U: Debug {
-   | 
+LL |     struct TeeOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U> where U: Debug {
+   |                                                    --                 --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:65:69
@@ -119,9 +110,8 @@ LL |     struct TeeWhereOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U> where T: 'a, 
    |
 help: remove these bounds
    |
-LL -     struct TeeWhereOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U> where T: 'a, U: 'b + Debug {
-LL +     struct TeeWhereOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U> where U: Debug {
-   | 
+LL |     struct TeeWhereOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U> where U: Debug {
+   |                                                                    -- --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:71:69
@@ -131,9 +121,8 @@ LL |     struct TeeWhereOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U> where T: 'a, 
    |
 help: remove these bounds
    |
-LL -     struct TeeWhereOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U> where T: 'a, U: Debug + 'b {
-LL +     struct TeeWhereOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U> where U: Debug {
-   | 
+LL |     struct TeeWhereOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U> where U: Debug {
+   |                                                                    --      --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:77:38
@@ -143,9 +132,8 @@ LL |     struct BeeOutlivesAyTeeBee<'a, 'b: 'a, T: 'b> {
    |
 help: remove these bounds
    |
-LL -     struct BeeOutlivesAyTeeBee<'a, 'b: 'a, T: 'b> {
-LL +     struct BeeOutlivesAyTeeBee<'a, 'b, T> {
-   | 
+LL |     struct BeeOutlivesAyTeeBee<'a, 'b, T> {
+   |                                     -- --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:82:40
@@ -155,9 +143,8 @@ LL |     struct BeeOutlivesAyTeeAyBee<'a, 'b: 'a, T: 'a + 'b> {
    |
 help: remove these bounds
    |
-LL -     struct BeeOutlivesAyTeeAyBee<'a, 'b: 'a, T: 'a + 'b> {
-LL +     struct BeeOutlivesAyTeeAyBee<'a, 'b, T> {
-   | 
+LL |     struct BeeOutlivesAyTeeAyBee<'a, 'b, T> {
+   |                                       -- --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:87:55
@@ -167,9 +154,8 @@ LL |     struct BeeOutlivesAyTeeOutlivesAyIsDebugBee<'a, 'b: 'a, T: 'a + Debug +
    |
 help: remove these bounds
    |
-LL -     struct BeeOutlivesAyTeeOutlivesAyIsDebugBee<'a, 'b: 'a, T: 'a + Debug + 'b> {
-LL +     struct BeeOutlivesAyTeeOutlivesAyIsDebugBee<'a, 'b, T: Debug> {
-   | 
+LL |     struct BeeOutlivesAyTeeOutlivesAyIsDebugBee<'a, 'b, T: Debug> {
+   |                                                      --   --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:92:68
@@ -179,9 +165,8 @@ LL |     struct BeeWhereAyTeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where 'b: 'a, 
    |
 help: remove these bounds
    |
-LL -     struct BeeWhereAyTeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where 'b: 'a, T: 'a + Debug + 'b {
-LL +     struct BeeWhereAyTeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where T: Debug {
-   | 
+LL |     struct BeeWhereAyTeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where T: Debug {
+   |                                                                   -- --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:97:58
@@ -191,9 +176,8 @@ LL |     struct BeeOutlivesAyTeeYooOutlivesAyIsDebugBee<'a, 'b: 'a, T, U: 'a + D
    |
 help: remove these bounds
    |
-LL -     struct BeeOutlivesAyTeeYooOutlivesAyIsDebugBee<'a, 'b: 'a, T, U: 'a + Debug + 'b> {
-LL +     struct BeeOutlivesAyTeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: Debug> {
-   | 
+LL |     struct BeeOutlivesAyTeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: Debug> {
+   |                                                         --      --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:104:18
@@ -203,9 +187,8 @@ LL |         where U: 'a + Debug + 'b, 'b: 'a
    |
 help: remove these bounds
    |
-LL -         where U: 'a + Debug + 'b, 'b: 'a
-LL +         where U: Debug, 
-   | 
+LL |         where U: Debug, 
+   |                 --   ----
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:115:47
@@ -215,9 +198,8 @@ LL |     struct TeeOutlivesAyIsDebugBee<'a, 'b, T: 'a + Debug + 'b>(&'a &'b T);
    |
 help: remove these bounds
    |
-LL -     struct TeeOutlivesAyIsDebugBee<'a, 'b, T: 'a + Debug + 'b>(&'a &'b T);
-LL +     struct TeeOutlivesAyIsDebugBee<'a, 'b, T: Debug>(&'a &'b T);
-   | 
+LL |     struct TeeOutlivesAyIsDebugBee<'a, 'b, T: Debug>(&'a &'b T);
+   |                                              --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:118:72
@@ -227,9 +209,8 @@ LL |     struct TeeWhereOutlivesAyIsDebugBee<'a, 'b, T>(&'a &'b T) where T: 'a +
    |
 help: remove these bounds
    |
-LL -     struct TeeWhereOutlivesAyIsDebugBee<'a, 'b, T>(&'a &'b T) where T: 'a + Debug + 'b;
-LL +     struct TeeWhereOutlivesAyIsDebugBee<'a, 'b, T>(&'a &'b T) where T: Debug;
-   | 
+LL |     struct TeeWhereOutlivesAyIsDebugBee<'a, 'b, T>(&'a &'b T) where T: Debug;
+   |                                                                       --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:121:53
@@ -239,9 +220,8 @@ LL |     struct TeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: 'a + Debug + 'b>(T, &'a
    |
 help: remove these bounds
    |
-LL -     struct TeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: 'a + Debug + 'b>(T, &'a &'b U);
-LL +     struct TeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: Debug>(T, &'a &'b U);
-   | 
+LL |     struct TeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: Debug>(T, &'a &'b U);
+   |                                                    --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:124:48
@@ -251,9 +231,8 @@ LL |     struct TeeOutlivesAyYooBeeIsDebug<'a, 'b, T: 'a, U: 'b + Debug>(&'a T, 
    |
 help: remove these bounds
    |
-LL -     struct TeeOutlivesAyYooBeeIsDebug<'a, 'b, T: 'a, U: 'b + Debug>(&'a T, &'b U);
-LL +     struct TeeOutlivesAyYooBeeIsDebug<'a, 'b, T, U: Debug>(&'a T, &'b U);
-   | 
+LL |     struct TeeOutlivesAyYooBeeIsDebug<'a, 'b, T, U: Debug>(&'a T, &'b U);
+   |                                               --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:127:48
@@ -263,9 +242,8 @@ LL |     struct TeeOutlivesAyYooIsDebugBee<'a, 'b, T: 'a, U: Debug + 'b>(&'a T, 
    |
 help: remove these bounds
    |
-LL -     struct TeeOutlivesAyYooIsDebugBee<'a, 'b, T: 'a, U: Debug + 'b>(&'a T, &'b U);
-LL +     struct TeeOutlivesAyYooIsDebugBee<'a, 'b, T, U: Debug>(&'a T, &'b U);
-   | 
+LL |     struct TeeOutlivesAyYooIsDebugBee<'a, 'b, T, U: Debug>(&'a T, &'b U);
+   |                                               --        --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:130:46
@@ -275,9 +253,8 @@ LL |     struct TeeOutlivesAyYooWhereBee<'a, 'b, T: 'a, U>(&'a T, &'b U) where U
    |
 help: remove these bounds
    |
-LL -     struct TeeOutlivesAyYooWhereBee<'a, 'b, T: 'a, U>(&'a T, &'b U) where U: 'b;
-LL +     struct TeeOutlivesAyYooWhereBee<'a, 'b, T, U>(&'a T, &'b U) ;
-   | 
+LL |     struct TeeOutlivesAyYooWhereBee<'a, 'b, T, U>(&'a T, &'b U) ;
+   |                                             --                 --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:133:81
@@ -287,9 +264,8 @@ LL |     struct TeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U>(T, &'a &'b U) wher
    |
 help: remove these bounds
    |
-LL -     struct TeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U>(T, &'a &'b U) where U: 'a + Debug + 'b;
-LL +     struct TeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U>(T, &'a &'b U) where U: Debug;
-   | 
+LL |     struct TeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U>(T, &'a &'b U) where U: Debug;
+   |                                                                                --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:136:53
@@ -299,9 +275,8 @@ LL |     struct TeeOutlivesAyYooWhereBeeIsDebug<'a, 'b, T: 'a, U>(&'a T, &'b U) 
    |
 help: remove these bounds
    |
-LL -     struct TeeOutlivesAyYooWhereBeeIsDebug<'a, 'b, T: 'a, U>(&'a T, &'b U) where U: 'b + Debug;
-LL +     struct TeeOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U>(&'a T, &'b U) where U: Debug;
-   | 
+LL |     struct TeeOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U>(&'a T, &'b U) where U: Debug;
+   |                                                    --                          --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:139:53
@@ -311,9 +286,8 @@ LL |     struct TeeOutlivesAyYooWhereIsDebugBee<'a, 'b, T: 'a, U>(&'a T, &'b U) 
    |
 help: remove these bounds
    |
-LL -     struct TeeOutlivesAyYooWhereIsDebugBee<'a, 'b, T: 'a, U>(&'a T, &'b U) where U: Debug + 'b;
-LL +     struct TeeOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U>(&'a T, &'b U) where U: Debug;
-   | 
+LL |     struct TeeOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U>(&'a T, &'b U) where U: Debug;
+   |                                                    --                               --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:142:75
@@ -323,9 +297,8 @@ LL |     struct TeeWhereAyYooWhereBeeIsDebug<'a, 'b, T, U>(&'a T, &'b U) where T
    |
 help: remove these bounds
    |
-LL -     struct TeeWhereAyYooWhereBeeIsDebug<'a, 'b, T, U>(&'a T, &'b U) where T: 'a, U: 'b + Debug;
-LL +     struct TeeWhereAyYooWhereBeeIsDebug<'a, 'b, T, U>(&'a T, &'b U) where U: Debug;
-   | 
+LL |     struct TeeWhereAyYooWhereBeeIsDebug<'a, 'b, T, U>(&'a T, &'b U) where U: Debug;
+   |                                                                          -- --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:145:75
@@ -335,9 +308,8 @@ LL |     struct TeeWhereAyYooWhereIsDebugBee<'a, 'b, T, U>(&'a T, &'b U) where T
    |
 help: remove these bounds
    |
-LL -     struct TeeWhereAyYooWhereIsDebugBee<'a, 'b, T, U>(&'a T, &'b U) where T: 'a, U: Debug + 'b;
-LL +     struct TeeWhereAyYooWhereIsDebugBee<'a, 'b, T, U>(&'a T, &'b U) where U: Debug;
-   | 
+LL |     struct TeeWhereAyYooWhereIsDebugBee<'a, 'b, T, U>(&'a T, &'b U) where U: Debug;
+   |                                                                          --      --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:148:38
@@ -347,9 +319,8 @@ LL |     struct BeeOutlivesAyTeeBee<'a, 'b: 'a, T: 'b>(&'a &'b T);
    |
 help: remove these bounds
    |
-LL -     struct BeeOutlivesAyTeeBee<'a, 'b: 'a, T: 'b>(&'a &'b T);
-LL +     struct BeeOutlivesAyTeeBee<'a, 'b, T>(&'a &'b T);
-   | 
+LL |     struct BeeOutlivesAyTeeBee<'a, 'b, T>(&'a &'b T);
+   |                                     -- --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:151:40
@@ -359,9 +330,8 @@ LL |     struct BeeOutlivesAyTeeAyBee<'a, 'b: 'a, T: 'a + 'b>(&'a &'b T);
    |
 help: remove these bounds
    |
-LL -     struct BeeOutlivesAyTeeAyBee<'a, 'b: 'a, T: 'a + 'b>(&'a &'b T);
-LL +     struct BeeOutlivesAyTeeAyBee<'a, 'b, T>(&'a &'b T);
-   | 
+LL |     struct BeeOutlivesAyTeeAyBee<'a, 'b, T>(&'a &'b T);
+   |                                       -- --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:154:55
@@ -371,9 +341,8 @@ LL |     struct BeeOutlivesAyTeeOutlivesAyIsDebugBee<'a, 'b: 'a, T: 'a + Debug +
    |
 help: remove these bounds
    |
-LL -     struct BeeOutlivesAyTeeOutlivesAyIsDebugBee<'a, 'b: 'a, T: 'a + Debug + 'b>(&'a &'b T);
-LL +     struct BeeOutlivesAyTeeOutlivesAyIsDebugBee<'a, 'b, T: Debug>(&'a &'b T);
-   | 
+LL |     struct BeeOutlivesAyTeeOutlivesAyIsDebugBee<'a, 'b, T: Debug>(&'a &'b T);
+   |                                                      --   --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:157:71
@@ -383,9 +352,8 @@ LL |     struct BeeWhereAyTeeWhereAyIsDebugBee<'a, 'b, T>(&'a &'b T) where 'b: '
    |
 help: remove these bounds
    |
-LL -     struct BeeWhereAyTeeWhereAyIsDebugBee<'a, 'b, T>(&'a &'b T) where 'b: 'a, T: 'a + Debug + 'b;
-LL +     struct BeeWhereAyTeeWhereAyIsDebugBee<'a, 'b, T>(&'a &'b T) where T: Debug;
-   | 
+LL |     struct BeeWhereAyTeeWhereAyIsDebugBee<'a, 'b, T>(&'a &'b T) where T: Debug;
+   |                                                                      -- --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:160:58
@@ -395,9 +363,8 @@ LL |     struct BeeOutlivesAyTeeYooOutlivesAyIsDebugBee<'a, 'b: 'a, T, U: 'a + D
    |
 help: remove these bounds
    |
-LL -     struct BeeOutlivesAyTeeYooOutlivesAyIsDebugBee<'a, 'b: 'a, T, U: 'a + Debug + 'b>(T, &'a &'b U);
-LL +     struct BeeOutlivesAyTeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: Debug>(T, &'a &'b U);
-   | 
+LL |     struct BeeOutlivesAyTeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: Debug>(T, &'a &'b U);
+   |                                                         --      --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:164:18
@@ -407,9 +374,8 @@ LL |         where U: 'a + Debug + 'b, 'b: 'a;
    |
 help: remove these bounds
    |
-LL -         where U: 'a + Debug + 'b, 'b: 'a;
-LL +         where U: Debug, ;
-   | 
+LL |         where U: Debug, ;
+   |                 --   ----
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:171:45
@@ -419,9 +385,8 @@ LL |     enum TeeOutlivesAyIsDebugBee<'a, 'b, T: 'a + Debug + 'b> {
    |
 help: remove these bounds
    |
-LL -     enum TeeOutlivesAyIsDebugBee<'a, 'b, T: 'a + Debug + 'b> {
-LL +     enum TeeOutlivesAyIsDebugBee<'a, 'b, T: Debug> {
-   | 
+LL |     enum TeeOutlivesAyIsDebugBee<'a, 'b, T: Debug> {
+   |                                            --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:176:59
@@ -431,9 +396,8 @@ LL |     enum TeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where T: 'a + Debug + 'b {
    |
 help: remove these bounds
    |
-LL -     enum TeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where T: 'a + Debug + 'b {
-LL +     enum TeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where T: Debug {
-   | 
+LL |     enum TeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where T: Debug {
+   |                                                          --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:181:51
@@ -443,9 +407,8 @@ LL |     enum TeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: 'a + Debug + 'b> {
    |
 help: remove these bounds
    |
-LL -     enum TeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: 'a + Debug + 'b> {
-LL +     enum TeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: Debug> {
-   | 
+LL |     enum TeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: Debug> {
+   |                                                  --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:187:46
@@ -455,9 +418,8 @@ LL |     enum TeeOutlivesAyYooBeeIsDebug<'a, 'b, T: 'a, U: 'b + Debug> {
    |
 help: remove these bounds
    |
-LL -     enum TeeOutlivesAyYooBeeIsDebug<'a, 'b, T: 'a, U: 'b + Debug> {
-LL +     enum TeeOutlivesAyYooBeeIsDebug<'a, 'b, T, U: Debug> {
-   | 
+LL |     enum TeeOutlivesAyYooBeeIsDebug<'a, 'b, T, U: Debug> {
+   |                                             --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:193:46
@@ -467,9 +429,8 @@ LL |     enum TeeOutlivesAyYooIsDebugBee<'a, 'b, T: 'a, U: Debug + 'b> {
    |
 help: remove these bounds
    |
-LL -     enum TeeOutlivesAyYooIsDebugBee<'a, 'b, T: 'a, U: Debug + 'b> {
-LL +     enum TeeOutlivesAyYooIsDebugBee<'a, 'b, T, U: Debug> {
-   | 
+LL |     enum TeeOutlivesAyYooIsDebugBee<'a, 'b, T, U: Debug> {
+   |                                             --        --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:199:44
@@ -479,9 +440,8 @@ LL |     enum TeeOutlivesAyYooWhereBee<'a, 'b, T: 'a, U> where U: 'b {
    |
 help: remove these bounds
    |
-LL -     enum TeeOutlivesAyYooWhereBee<'a, 'b, T: 'a, U> where U: 'b {
-LL +     enum TeeOutlivesAyYooWhereBee<'a, 'b, T, U> {
-   | 
+LL |     enum TeeOutlivesAyYooWhereBee<'a, 'b, T, U> {
+   |                                           --  --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:205:65
@@ -491,9 +451,8 @@ LL |     enum TeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: 'a + Debug 
    |
 help: remove these bounds
    |
-LL -     enum TeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: 'a + Debug + 'b {
-LL +     enum TeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: Debug {
-   | 
+LL |     enum TeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: Debug {
+   |                                                                --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:211:51
@@ -503,9 +462,8 @@ LL |     enum TeeOutlivesAyYooWhereBeeIsDebug<'a, 'b, T: 'a, U> where U: 'b + De
    |
 help: remove these bounds
    |
-LL -     enum TeeOutlivesAyYooWhereBeeIsDebug<'a, 'b, T: 'a, U> where U: 'b + Debug {
-LL +     enum TeeOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U> where U: Debug {
-   | 
+LL |     enum TeeOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U> where U: Debug {
+   |                                                  --            --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:217:51
@@ -515,9 +473,8 @@ LL |     enum TeeOutlivesAyYooWhereIsDebugBee<'a, 'b, T: 'a, U> where U: Debug +
    |
 help: remove these bounds
    |
-LL -     enum TeeOutlivesAyYooWhereIsDebugBee<'a, 'b, T: 'a, U> where U: Debug + 'b {
-LL +     enum TeeOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U> where U: Debug {
-   | 
+LL |     enum TeeOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U> where U: Debug {
+   |                                                  --                 --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:223:67
@@ -527,9 +484,8 @@ LL |     enum TeeWhereOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U> where T: 'a, U:
    |
 help: remove these bounds
    |
-LL -     enum TeeWhereOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U> where T: 'a, U: 'b + Debug {
-LL +     enum TeeWhereOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U> where U: Debug {
-   | 
+LL |     enum TeeWhereOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U> where U: Debug {
+   |                                                                  -- --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:229:67
@@ -539,9 +495,8 @@ LL |     enum TeeWhereOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U> where T: 'a, U:
    |
 help: remove these bounds
    |
-LL -     enum TeeWhereOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U> where T: 'a, U: Debug + 'b {
-LL +     enum TeeWhereOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U> where U: Debug {
-   | 
+LL |     enum TeeWhereOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U> where U: Debug {
+   |                                                                  --      --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:235:36
@@ -551,9 +506,8 @@ LL |     enum BeeOutlivesAyTeeBee<'a, 'b: 'a, T: 'b> {
    |
 help: remove these bounds
    |
-LL -     enum BeeOutlivesAyTeeBee<'a, 'b: 'a, T: 'b> {
-LL +     enum BeeOutlivesAyTeeBee<'a, 'b, T> {
-   | 
+LL |     enum BeeOutlivesAyTeeBee<'a, 'b, T> {
+   |                                   -- --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:240:38
@@ -563,9 +517,8 @@ LL |     enum BeeOutlivesAyTeeAyBee<'a, 'b: 'a, T: 'a + 'b> {
    |
 help: remove these bounds
    |
-LL -     enum BeeOutlivesAyTeeAyBee<'a, 'b: 'a, T: 'a + 'b> {
-LL +     enum BeeOutlivesAyTeeAyBee<'a, 'b, T> {
-   | 
+LL |     enum BeeOutlivesAyTeeAyBee<'a, 'b, T> {
+   |                                     -- --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:246:53
@@ -575,9 +528,8 @@ LL |     enum BeeOutlivesAyTeeOutlivesAyIsDebugBee<'a, 'b: 'a, T: 'a + Debug + '
    |
 help: remove these bounds
    |
-LL -     enum BeeOutlivesAyTeeOutlivesAyIsDebugBee<'a, 'b: 'a, T: 'a + Debug + 'b> {
-LL +     enum BeeOutlivesAyTeeOutlivesAyIsDebugBee<'a, 'b, T: Debug> {
-   | 
+LL |     enum BeeOutlivesAyTeeOutlivesAyIsDebugBee<'a, 'b, T: Debug> {
+   |                                                    --   --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:251:66
@@ -587,9 +539,8 @@ LL |     enum BeeWhereAyTeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where 'b: 'a, T:
    |
 help: remove these bounds
    |
-LL -     enum BeeWhereAyTeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where 'b: 'a, T: 'a + Debug + 'b {
-LL +     enum BeeWhereAyTeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where T: Debug {
-   | 
+LL |     enum BeeWhereAyTeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where T: Debug {
+   |                                                                 -- --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:256:56
@@ -599,9 +550,8 @@ LL |     enum BeeOutlivesAyTeeYooOutlivesAyIsDebugBee<'a, 'b: 'a, T, U: 'a + Deb
    |
 help: remove these bounds
    |
-LL -     enum BeeOutlivesAyTeeYooOutlivesAyIsDebugBee<'a, 'b: 'a, T, U: 'a + Debug + 'b> {
-LL +     enum BeeOutlivesAyTeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: Debug> {
-   | 
+LL |     enum BeeOutlivesAyTeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: Debug> {
+   |                                                       --      --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:262:75
@@ -611,9 +561,8 @@ LL |     enum BeeWhereAyTeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: '
    |
 help: remove these bounds
    |
-LL -     enum BeeWhereAyTeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: 'a + Debug + 'b, 'b: 'a {
-LL +     enum BeeWhereAyTeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: Debug,  {
-   | 
+LL |     enum BeeWhereAyTeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: Debug,  {
+   |                                                                          --   ----
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:271:46
@@ -623,9 +572,8 @@ LL |     union TeeOutlivesAyIsDebugBee<'a, 'b, T: 'a + Debug + 'b> {
    |
 help: remove these bounds
    |
-LL -     union TeeOutlivesAyIsDebugBee<'a, 'b, T: 'a + Debug + 'b> {
-LL +     union TeeOutlivesAyIsDebugBee<'a, 'b, T: Debug> {
-   | 
+LL |     union TeeOutlivesAyIsDebugBee<'a, 'b, T: Debug> {
+   |                                             --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:276:60
@@ -635,9 +583,8 @@ LL |     union TeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where T: 'a + Debug + 'b 
    |
 help: remove these bounds
    |
-LL -     union TeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where T: 'a + Debug + 'b {
-LL +     union TeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where T: Debug {
-   | 
+LL |     union TeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where T: Debug {
+   |                                                           --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:281:52
@@ -647,9 +594,8 @@ LL |     union TeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: 'a + Debug + 'b> {
    |
 help: remove these bounds
    |
-LL -     union TeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: 'a + Debug + 'b> {
-LL +     union TeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: Debug> {
-   | 
+LL |     union TeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: Debug> {
+   |                                                   --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:287:47
@@ -659,9 +605,8 @@ LL |     union TeeOutlivesAyYooBeeIsDebug<'a, 'b, T: 'a, U: 'b + Debug> {
    |
 help: remove these bounds
    |
-LL -     union TeeOutlivesAyYooBeeIsDebug<'a, 'b, T: 'a, U: 'b + Debug> {
-LL +     union TeeOutlivesAyYooBeeIsDebug<'a, 'b, T, U: Debug> {
-   | 
+LL |     union TeeOutlivesAyYooBeeIsDebug<'a, 'b, T, U: Debug> {
+   |                                              --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:293:47
@@ -671,9 +616,8 @@ LL |     union TeeOutlivesAyYooIsDebugBee<'a, 'b, T: 'a, U: Debug + 'b> {
    |
 help: remove these bounds
    |
-LL -     union TeeOutlivesAyYooIsDebugBee<'a, 'b, T: 'a, U: Debug + 'b> {
-LL +     union TeeOutlivesAyYooIsDebugBee<'a, 'b, T, U: Debug> {
-   | 
+LL |     union TeeOutlivesAyYooIsDebugBee<'a, 'b, T, U: Debug> {
+   |                                              --        --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:299:45
@@ -683,9 +627,8 @@ LL |     union TeeOutlivesAyYooWhereBee<'a, 'b, T: 'a, U> where U: 'b {
    |
 help: remove these bounds
    |
-LL -     union TeeOutlivesAyYooWhereBee<'a, 'b, T: 'a, U> where U: 'b {
-LL +     union TeeOutlivesAyYooWhereBee<'a, 'b, T, U> {
-   | 
+LL |     union TeeOutlivesAyYooWhereBee<'a, 'b, T, U> {
+   |                                            --  --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:305:66
@@ -695,9 +638,8 @@ LL |     union TeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: 'a + Debug
    |
 help: remove these bounds
    |
-LL -     union TeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: 'a + Debug + 'b {
-LL +     union TeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: Debug {
-   | 
+LL |     union TeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: Debug {
+   |                                                                 --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:311:52
@@ -707,9 +649,8 @@ LL |     union TeeOutlivesAyYooWhereBeeIsDebug<'a, 'b, T: 'a, U> where U: 'b + D
    |
 help: remove these bounds
    |
-LL -     union TeeOutlivesAyYooWhereBeeIsDebug<'a, 'b, T: 'a, U> where U: 'b + Debug {
-LL +     union TeeOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U> where U: Debug {
-   | 
+LL |     union TeeOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U> where U: Debug {
+   |                                                   --            --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:317:52
@@ -719,9 +660,8 @@ LL |     union TeeOutlivesAyYooWhereIsDebugBee<'a, 'b, T: 'a, U> where U: Debug 
    |
 help: remove these bounds
    |
-LL -     union TeeOutlivesAyYooWhereIsDebugBee<'a, 'b, T: 'a, U> where U: Debug + 'b {
-LL +     union TeeOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U> where U: Debug {
-   | 
+LL |     union TeeOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U> where U: Debug {
+   |                                                   --                 --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:323:68
@@ -731,9 +671,8 @@ LL |     union TeeWhereOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U> where T: 'a, U
    |
 help: remove these bounds
    |
-LL -     union TeeWhereOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U> where T: 'a, U: 'b + Debug {
-LL +     union TeeWhereOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U> where U: Debug {
-   | 
+LL |     union TeeWhereOutlivesAyYooWhereBeeIsDebug<'a, 'b, T, U> where U: Debug {
+   |                                                                   -- --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:329:68
@@ -743,9 +682,8 @@ LL |     union TeeWhereOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U> where T: 'a, U
    |
 help: remove these bounds
    |
-LL -     union TeeWhereOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U> where T: 'a, U: Debug + 'b {
-LL +     union TeeWhereOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U> where U: Debug {
-   | 
+LL |     union TeeWhereOutlivesAyYooWhereIsDebugBee<'a, 'b, T, U> where U: Debug {
+   |                                                                   --      --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:335:37
@@ -755,9 +693,8 @@ LL |     union BeeOutlivesAyTeeBee<'a, 'b: 'a, T: 'b> {
    |
 help: remove these bounds
    |
-LL -     union BeeOutlivesAyTeeBee<'a, 'b: 'a, T: 'b> {
-LL +     union BeeOutlivesAyTeeBee<'a, 'b, T> {
-   | 
+LL |     union BeeOutlivesAyTeeBee<'a, 'b, T> {
+   |                                    -- --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:340:39
@@ -767,9 +704,8 @@ LL |     union BeeOutlivesAyTeeAyBee<'a, 'b: 'a, T: 'a + 'b> {
    |
 help: remove these bounds
    |
-LL -     union BeeOutlivesAyTeeAyBee<'a, 'b: 'a, T: 'a + 'b> {
-LL +     union BeeOutlivesAyTeeAyBee<'a, 'b, T> {
-   | 
+LL |     union BeeOutlivesAyTeeAyBee<'a, 'b, T> {
+   |                                      -- --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:345:54
@@ -779,9 +715,8 @@ LL |     union BeeOutlivesAyTeeOutlivesAyIsDebugBee<'a, 'b: 'a, T: 'a + Debug + 
    |
 help: remove these bounds
    |
-LL -     union BeeOutlivesAyTeeOutlivesAyIsDebugBee<'a, 'b: 'a, T: 'a + Debug + 'b> {
-LL +     union BeeOutlivesAyTeeOutlivesAyIsDebugBee<'a, 'b, T: Debug> {
-   | 
+LL |     union BeeOutlivesAyTeeOutlivesAyIsDebugBee<'a, 'b, T: Debug> {
+   |                                                     --   --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:350:67
@@ -791,9 +726,8 @@ LL |     union BeeWhereAyTeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where 'b: 'a, T
    |
 help: remove these bounds
    |
-LL -     union BeeWhereAyTeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where 'b: 'a, T: 'a + Debug + 'b {
-LL +     union BeeWhereAyTeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where T: Debug {
-   | 
+LL |     union BeeWhereAyTeeWhereOutlivesAyIsDebugBee<'a, 'b, T> where T: Debug {
+   |                                                                  -- --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:355:57
@@ -803,9 +737,8 @@ LL |     union BeeOutlivesAyTeeYooOutlivesAyIsDebugBee<'a, 'b: 'a, T, U: 'a + De
    |
 help: remove these bounds
    |
-LL -     union BeeOutlivesAyTeeYooOutlivesAyIsDebugBee<'a, 'b: 'a, T, U: 'a + Debug + 'b> {
-LL +     union BeeOutlivesAyTeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: Debug> {
-   | 
+LL |     union BeeOutlivesAyTeeYooOutlivesAyIsDebugBee<'a, 'b, T, U: Debug> {
+   |                                                        --      --   --
 
 error: outlives requirements can be inferred
   --> $DIR/edition-lint-infer-outlives-multispan.rs:361:76
@@ -815,9 +748,8 @@ LL |     union BeeWhereAyTeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: 
    |
 help: remove these bounds
    |
-LL -     union BeeWhereAyTeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: 'a + Debug + 'b, 'b: 'a {
-LL +     union BeeWhereAyTeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: Debug,  {
-   | 
+LL |     union BeeWhereAyTeeYooWhereOutlivesAyIsDebugBee<'a, 'b, T, U> where U: Debug,  {
+   |                                                                           --   ----
 
 error: aborting due to 68 previous errors
 

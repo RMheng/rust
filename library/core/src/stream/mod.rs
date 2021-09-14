@@ -122,8 +122,6 @@
 //! warning: unused result that must be used: streams do nothing unless polled
 //! ```
 
-mod from_iter;
 mod stream;
 
-pub use from_iter::{from_iter, FromIter};
 pub use stream::Stream;

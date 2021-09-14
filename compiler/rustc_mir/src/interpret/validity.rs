@@ -7,6 +7,7 @@
 use std::convert::TryFrom;
 use std::fmt::Write;
 use std::num::NonZeroUsize;
+use std::ops::RangeInclusive;
 
 use rustc_data_structures::fx::FxHashSet;
 use rustc_hir as hir;
@@ -14,9 +15,7 @@ use rustc_middle::mir::interpret::InterpError;
 use rustc_middle::ty;
 use rustc_middle::ty::layout::TyAndLayout;
 use rustc_span::symbol::{sym, Symbol};
-use rustc_target::abi::{
-    Abi, LayoutOf, Scalar as ScalarAbi, Size, VariantIdx, Variants, WrappingRange,
-};
+use rustc_target::abi::{Abi, LayoutOf, Scalar as ScalarAbi, Size, VariantIdx, Variants};
 
 use std::hash::Hash;
 
@@ -182,10 +181,22 @@ fn write_path(out: &mut String, path: &[PathElem]) {
     }
 }
 
+// Test if a range that wraps at overflow contains `test`
+fn wrapping_range_contains(r: &RangeInclusive<u128>, test: u128) -> bool {
+    let (lo, hi) = r.clone().into_inner();
+    if lo > hi {
+        // Wrapped
+        (..=hi).contains(&test) || (lo..).contains(&test)
+    } else {
+        // Normal
+        r.contains(&test)
+    }
+}
+
 // Formats such that a sentence like "expected something {}" to mean
 // "expected something <in the given range>" makes sense.
-fn wrapping_range_format(r: WrappingRange, max_hi: u128) -> String {
-    let WrappingRange { start: lo, end: hi } = r;
+fn wrapping_range_format(r: &RangeInclusive<u128>, max_hi: u128) -> String {
+    let (lo, hi) = r.clone().into_inner();
     assert!(hi <= max_hi);
     if lo > hi {
         format!("less or equal to {}, or greater or equal to {}", hi, lo)
@@ -623,8 +634,8 @@ impl<'rt, 'mir, 'tcx: 'mir, M: Machine<'mir, 'tcx>> ValidityVisitor<'rt, 'mir, '
         scalar_layout: &ScalarAbi,
     ) -> InterpResult<'tcx> {
         let value = self.read_scalar(op)?;
-        let valid_range = scalar_layout.valid_range.clone();
-        let WrappingRange { start: lo, end: hi } = valid_range;
+        let valid_range = &scalar_layout.valid_range;
+        let (lo, hi) = valid_range.clone().into_inner();
         // Determine the allowed range
         // `max_hi` is as big as the size fits
         let max_hi = u128::MAX >> (128 - op.layout.size.bits());
@@ -673,7 +684,7 @@ impl<'rt, 'mir, 'tcx: 'mir, M: Machine<'mir, 'tcx>> ValidityVisitor<'rt, 'mir, '
             Ok(int) => int.assert_bits(op.layout.size),
         };
         // Now compare. This is slightly subtle because this is a special "wrap-around" range.
-        if valid_range.contains(bits) {
+        if wrapping_range_contains(&valid_range, bits) {
             Ok(())
         } else {
             throw_validation_failure!(self.path,
@@ -846,7 +857,7 @@ impl<'rt, 'mir, 'tcx: 'mir, M: Machine<'mir, 'tcx>> ValueVisitor<'mir, 'tcx, M>
                 // types above, in `visit_primitive`.
                 // In run-time mode, we accept pointers in here.  This is actually more
                 // permissive than a per-element check would be, e.g., we accept
-                // a &[u8] that contains a pointer even though bytewise checking would
+                // an &[u8] that contains a pointer even though bytewise checking would
                 // reject it.  However, that's good: We don't inherently want
                 // to reject those pointers, we just do not have the machinery to
                 // talk about parts of a pointer.

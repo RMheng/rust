@@ -1,3 +1,5 @@
+#![feature(bindings_after_at)]
+
 fn main() {
     let mut is_mut @ not_mut = 42;
     &mut is_mut;

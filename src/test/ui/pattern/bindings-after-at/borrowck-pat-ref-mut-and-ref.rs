@@ -1,3 +1,5 @@
+#![feature(bindings_after_at)]
+
 enum Option<T> {
     None,
     Some(T),

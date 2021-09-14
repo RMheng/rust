@@ -1,7 +1,9 @@
 // aux-build:impl-const.rs
 // run-pass
-#![feature(generic_const_exprs)]
-#![allow(incomplete_features)]
+// revisions: full min
+
+#![cfg_attr(full, feature(const_generics))]
+#![cfg_attr(full, allow(incomplete_features))]
 
 extern crate impl_const;
 

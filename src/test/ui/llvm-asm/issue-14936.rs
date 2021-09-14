@@ -1,7 +1,6 @@
 // build-pass
 #![allow(unused_macros)]
 #![allow(dead_code)]
-#![allow(deprecated)] // llvm_asm!
 #![feature(llvm_asm)]
 
 type History = Vec<&'static str>;

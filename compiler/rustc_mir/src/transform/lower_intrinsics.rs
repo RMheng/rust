@@ -29,14 +29,14 @@ impl<'tcx> MirPass<'tcx> for LowerIntrinsics {
                         if let Some((destination, target)) = *destination {
                             block.statements.push(Statement {
                                 source_info: terminator.source_info,
-                                kind: StatementKind::Assign(Box::new((
+                                kind: StatementKind::Assign(box (
                                     destination,
-                                    Rvalue::Use(Operand::Constant(Box::new(Constant {
+                                    Rvalue::Use(Operand::Constant(box Constant {
                                         span: terminator.source_info.span,
                                         user_ty: None,
                                         literal: ty::Const::zero_sized(tcx, tcx.types.unit).into(),
-                                    }))),
-                                ))),
+                                    })),
+                                )),
                             });
                             terminator.kind = TerminatorKind::Goto { target };
                         }
@@ -46,13 +46,13 @@ impl<'tcx> MirPass<'tcx> for LowerIntrinsics {
                         let mut args = args.drain(..);
                         block.statements.push(Statement {
                             source_info: terminator.source_info,
-                            kind: StatementKind::CopyNonOverlapping(Box::new(
-                                rustc_middle::mir::CopyNonOverlapping {
+                            kind: StatementKind::CopyNonOverlapping(
+                                box rustc_middle::mir::CopyNonOverlapping {
                                     src: args.next().unwrap(),
                                     dst: args.next().unwrap(),
                                     count: args.next().unwrap(),
                                 },
-                            )),
+                            ),
                         });
                         assert_eq!(
                             args.next(),
@@ -79,10 +79,10 @@ impl<'tcx> MirPass<'tcx> for LowerIntrinsics {
                             };
                             block.statements.push(Statement {
                                 source_info: terminator.source_info,
-                                kind: StatementKind::Assign(Box::new((
+                                kind: StatementKind::Assign(box (
                                     destination,
-                                    Rvalue::BinaryOp(bin_op, Box::new((lhs, rhs))),
-                                ))),
+                                    Rvalue::BinaryOp(bin_op, box (lhs, rhs)),
+                                )),
                             });
                             terminator.kind = TerminatorKind::Goto { target };
                         }
@@ -97,10 +97,10 @@ impl<'tcx> MirPass<'tcx> for LowerIntrinsics {
                             let tp_ty = substs.type_at(0);
                             block.statements.push(Statement {
                                 source_info: terminator.source_info,
-                                kind: StatementKind::Assign(Box::new((
+                                kind: StatementKind::Assign(box (
                                     destination,
                                     Rvalue::NullaryOp(NullOp::SizeOf, tp_ty),
-                                ))),
+                                )),
                             });
                             terminator.kind = TerminatorKind::Goto { target };
                         }
@@ -112,10 +112,10 @@ impl<'tcx> MirPass<'tcx> for LowerIntrinsics {
                             let arg = tcx.mk_place_deref(arg);
                             block.statements.push(Statement {
                                 source_info: terminator.source_info,
-                                kind: StatementKind::Assign(Box::new((
+                                kind: StatementKind::Assign(box (
                                     destination,
                                     Rvalue::Discriminant(arg),
-                                ))),
+                                )),
                             });
                             terminator.kind = TerminatorKind::Goto { target };
                         }
@@ -147,8 +147,8 @@ fn validate_simd_shuffle(tcx: TyCtxt<'tcx>, args: &[Operand<'tcx>], span: Span) 
     match &args[2] {
         Operand::Constant(_) => {} // all good
         _ => {
-            let msg = "last argument of `simd_shuffle` is required to be a `const` item";
-            tcx.sess.span_err(span, msg);
+            let msg = format!("last argument of `simd_shuffle` is required to be a `const` item");
+            tcx.sess.span_err(span, &msg);
         }
     }
 }

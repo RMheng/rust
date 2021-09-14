@@ -1,4 +1,4 @@
-#![feature(generic_const_exprs)]
+#![feature(const_generics)]
 #![allow(incomplete_features)]
 
 trait Bar<const M: usize> {}

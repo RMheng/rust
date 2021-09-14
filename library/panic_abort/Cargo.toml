@@ -1,4 +1,5 @@
 [package]
+authors = ["The Rust Project Developers"]
 name = "panic_abort"
 version = "0.0.0"
 license = "MIT OR Apache-2.0"
@@ -15,5 +16,5 @@ doc = false
 alloc = { path = "../alloc" }
 cfg-if = { version = "0.1.8", features = ['rustc-dep-of-std'] }
 core = { path = "../core" }
-libc = { version = "0.2.99", default-features = false }
-compiler_builtins = "0.1.44"
+libc = { version = "0.2", default-features = false }
+compiler_builtins = "0.1.0"

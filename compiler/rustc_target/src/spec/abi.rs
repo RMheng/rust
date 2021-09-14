@@ -87,9 +87,6 @@ pub fn all_names() -> Vec<&'static str> {
 }
 
 impl Abi {
-    /// Default ABI chosen for `extern fn` declarations without an explicit ABI.
-    pub const FALLBACK: Abi = Abi::C { unwind: false };
-
     #[inline]
     pub fn index(self) -> usize {
         // N.B., this ordering MUST match the AbiDatas array above.

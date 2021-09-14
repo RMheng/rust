@@ -12,6 +12,7 @@ where
 impl<S, T> X<'_, T> for (S,) {
     //~^ ERROR the trait bound `for<'b> T: X<'b, T>` is not satisfied
     type U = str;
+    //~^ ERROR the trait bound `for<'b> <T as X<'b, T>>::U: Clone` is not satisfied
 }
 
 pub fn main() {

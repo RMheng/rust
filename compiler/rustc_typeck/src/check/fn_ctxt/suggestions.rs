@@ -213,14 +213,8 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         expected_ty_expr: Option<&'tcx hir::Expr<'tcx>>,
     ) {
         let expr = expr.peel_blocks();
-        if let Some((sp, msg, suggestion, applicability, verbose)) =
-            self.check_ref(expr, found, expected)
-        {
-            if verbose {
-                err.span_suggestion_verbose(sp, msg, suggestion, applicability);
-            } else {
-                err.span_suggestion(sp, msg, suggestion, applicability);
-            }
+        if let Some((sp, msg, suggestion, applicability)) = self.check_ref(expr, found, expected) {
+            err.span_suggestion(sp, msg, suggestion, applicability);
         } else if let (ty::FnDef(def_id, ..), true) =
             (&found.kind(), self.suggest_fn_call(err, expr, expected, found))
         {
@@ -240,36 +234,29 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                             None // do not suggest code that is already there (#53348)
                         } else {
                             let method_call_list = [".to_vec()", ".to_string()"];
-                            let mut sugg = if receiver.ends_with(".clone()")
+                            let sugg = if receiver.ends_with(".clone()")
                                 && method_call_list.contains(&method_call.as_str())
                             {
                                 let max_len = receiver.rfind('.').unwrap();
-                                vec![(
-                                    expr.span,
-                                    format!("{}{}", &receiver[..max_len], method_call),
-                                )]
+                                format!("{}{}", &receiver[..max_len], method_call)
                             } else {
                                 if expr.precedence().order() < ExprPrecedence::MethodCall.order() {
-                                    vec![
-                                        (expr.span.shrink_to_lo(), "(".to_string()),
-                                        (expr.span.shrink_to_hi(), format!("){}", method_call)),
-                                    ]
+                                    format!("({}){}", receiver, method_call)
                                 } else {
-                                    vec![(expr.span.shrink_to_hi(), method_call)]
+                                    format!("{}{}", receiver, method_call)
                                 }
                             };
-                            if is_struct_pat_shorthand_field {
-                                sugg.insert(
-                                    0,
-                                    (expr.span.shrink_to_lo(), format!("{}: ", receiver)),
-                                );
-                            }
-                            Some(sugg)
+                            Some(if is_struct_pat_shorthand_field {
+                                format!("{}: {}", receiver, sugg)
+                            } else {
+                                sugg
+                            })
                         }
                     })
                     .peekable();
                 if suggestions.peek().is_some() {
-                    err.multipart_suggestions(
+                    err.span_suggestions(
+                        expr.span,
                         "try using a conversion method",
                         suggestions,
                         Applicability::MaybeIncorrect,
@@ -296,13 +283,14 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             return;
         }
         let boxed_found = self.tcx.mk_box(found);
-        if self.can_coerce(boxed_found, expected) {
-            err.multipart_suggestion(
+        if let (true, Ok(snippet)) = (
+            self.can_coerce(boxed_found, expected),
+            self.sess().source_map().span_to_snippet(expr.span),
+        ) {
+            err.span_suggestion(
+                expr.span,
                 "store this in the heap by calling `Box::new`",
-                vec![
-                    (expr.span.shrink_to_lo(), "Box::new(".to_string()),
-                    (expr.span.shrink_to_hi(), ")".to_string()),
-                ],
+                format!("Box::new({})", snippet),
                 Applicability::MachineApplicable,
             );
             err.note(
@@ -369,18 +357,19 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         }
         let boxed_found = self.tcx.mk_box(found);
         let new_found = self.tcx.mk_lang_item(boxed_found, LangItem::Pin).unwrap();
-        if self.can_coerce(new_found, expected) {
+        if let (true, Ok(snippet)) = (
+            self.can_coerce(new_found, expected),
+            self.sess().source_map().span_to_snippet(expr.span),
+        ) {
             match found.kind() {
                 ty::Adt(def, _) if def.is_box() => {
                     err.help("use `Box::pin`");
                 }
                 _ => {
-                    err.multipart_suggestion(
+                    err.span_suggestion(
+                        expr.span,
                         "you need to pin and box this expression",
-                        vec![
-                            (expr.span.shrink_to_lo(), "Box::pin(".to_string()),
-                            (expr.span.shrink_to_hi(), ")".to_string()),
-                        ],
+                        format!("Box::pin({})", snippet),
                         Applicability::MachineApplicable,
                     );
                 }
@@ -558,7 +547,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         let sp = self.tcx.sess.source_map().start_point(expr.span);
         if let Some(sp) = self.tcx.sess.parse_sess.ambiguous_block_expr_parse.borrow().get(&sp) {
             // `{ 42 } &&x` (#61475) or `{ 42 } && if x { 1 } else { 0 }`
-            self.tcx.sess.parse_sess.expr_parentheses_needed(err, *sp);
+            self.tcx.sess.parse_sess.expr_parentheses_needed(err, *sp, None);
         }
     }
 

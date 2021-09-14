@@ -32,8 +32,6 @@ pub mod memchr;
 pub mod mutex;
 pub mod net;
 pub mod os;
-#[path = "../unix/os_str.rs"]
-pub mod os_str;
 #[path = "../unix/path.rs"]
 pub mod path;
 #[path = "../unsupported/pipe.rs"]
@@ -49,6 +47,7 @@ pub mod thread_local_key;
 pub mod time;
 
 use crate::io::ErrorKind;
+pub use crate::sys_common::os_str_bytes as os_str;
 
 #[allow(unused_extern_crates)]
 pub extern crate hermit_abi as abi;

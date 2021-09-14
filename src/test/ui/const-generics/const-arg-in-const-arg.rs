@@ -1,5 +1,5 @@
 // revisions: min
-// FIXME(generic_const_exprs): This test currently causes an ICE because
+// FIXME(const_generics): This test currently causes an ICE because
 // we don't yet correctly deal with lifetimes, reenable this test once
 // this is fixed.
 

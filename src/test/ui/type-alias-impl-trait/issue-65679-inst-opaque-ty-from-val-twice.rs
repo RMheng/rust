@@ -1,7 +1,9 @@
 // compile-flags: -Zsave-analysis
-// check-pass
 
-#![feature(type_alias_impl_trait, rustc_attrs)]
+// revisions: min_tait full_tait
+#![feature(min_type_alias_impl_trait, rustc_attrs)]
+#![cfg_attr(full_tait, feature(type_alias_impl_trait))]
+//[full_tait]~^ WARN incomplete
 
 type T = impl Sized;
 // The concrete type referred by impl-trait-type-alias(`T`) is guaranteed
@@ -12,7 +14,11 @@ type T = impl Sized;
 
 fn take(_: fn() -> T) {}
 
+#[rustc_error]
 fn main() {
+    //[full_tait]~^ ERROR fatal error triggered by #[rustc_error]
     take(|| {});
+    //[min_tait]~^ ERROR not permitted here
     take(|| {});
+    //[min_tait]~^ ERROR not permitted here
 }

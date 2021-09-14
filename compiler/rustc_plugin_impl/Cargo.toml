@@ -1,4 +1,5 @@
 [package]
+authors = ["The Rust Project Developers"]
 name = "rustc_plugin_impl"
 version = "0.0.0"
 build = false

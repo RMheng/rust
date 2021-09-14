@@ -1,4 +1,5 @@
 [package]
+authors = ["The Rust Project Developers"]
 name = "alloc"
 version = "0.0.0"
 license = "MIT OR Apache-2.0"
@@ -10,7 +11,7 @@ edition = "2018"
 
 [dependencies]
 core = { path = "../core" }
-compiler_builtins = { version = "=0.1.44", features = ['rustc-dep-of-std'] }
+compiler_builtins = { version = "0.1.40", features = ['rustc-dep-of-std'] }
 
 [dev-dependencies]
 rand = "0.7"

@@ -53,6 +53,7 @@ use crate::dataflow::impls::{
     MaybeBorrowedLocals, MaybeLiveLocals, MaybeRequiresStorage, MaybeStorageLive,
 };
 use crate::dataflow::{self, Analysis};
+use crate::transform::no_landing_pads::no_landing_pads;
 use crate::transform::simplify;
 use crate::transform::MirPass;
 use crate::util::dump_mir;
@@ -274,7 +275,7 @@ impl TransformVisitor<'tcx> {
         Statement {
             source_info,
             kind: StatementKind::SetDiscriminant {
-                place: Box::new(self_place),
+                place: box self_place,
                 variant_index: state_disc,
             },
         }
@@ -289,7 +290,7 @@ impl TransformVisitor<'tcx> {
         let self_place = Place::from(SELF_ARG);
         let assign = Statement {
             source_info: SourceInfo::outermost(body.span),
-            kind: StatementKind::Assign(Box::new((temp, Rvalue::Discriminant(self_place)))),
+            kind: StatementKind::Assign(box (temp, Rvalue::Discriminant(self_place))),
         };
         (assign, temp)
     }
@@ -626,7 +627,7 @@ fn compute_storage_conflicts(
     // Locals that are always live or ones that need to be stored across
     // suspension points are not eligible for overlap.
     let mut ineligible_locals = always_live_locals.into_inner();
-    ineligible_locals.intersect(&**saved_locals);
+    ineligible_locals.intersect(saved_locals);
 
     // Compute the storage conflicts for all eligible locals.
     let mut visitor = StorageConflictVisitor {
@@ -701,7 +702,7 @@ impl<'body, 'tcx, 's> StorageConflictVisitor<'body, 'tcx, 's> {
         }
 
         let mut eligible_storage_live = flow_state.clone();
-        eligible_storage_live.intersect(&**self.saved_locals);
+        eligible_storage_live.intersect(&self.saved_locals);
 
         for local in eligible_storage_live.iter() {
             self.local_conflicts.union_row_with(&eligible_storage_live, local);
@@ -954,10 +955,12 @@ fn create_generator_drop_shim<'tcx>(
             0,
             Statement {
                 source_info,
-                kind: StatementKind::Retag(RetagKind::Raw, Box::new(Place::from(SELF_ARG))),
+                kind: StatementKind::Retag(RetagKind::Raw, box Place::from(SELF_ARG)),
             },
         )
     }
+
+    no_landing_pads(tcx, &mut body);
 
     // Make sure we remove dead blocks to remove
     // unrelated code from the resume part of the function
@@ -984,11 +987,11 @@ fn insert_panic_block<'tcx>(
 ) -> BasicBlock {
     let assert_block = BasicBlock::new(body.basic_blocks().len());
     let term = TerminatorKind::Assert {
-        cond: Operand::Constant(Box::new(Constant {
+        cond: Operand::Constant(box Constant {
             span: body.span,
             user_ty: None,
             literal: ty::Const::from_bool(tcx, false).into(),
-        })),
+        }),
         expected: true,
         msg: message,
         target: assert_block,
@@ -1130,6 +1133,8 @@ fn create_generator_resume_function<'tcx>(
     make_generator_state_argument_indirect(tcx, body);
     make_generator_state_argument_pinned(tcx, body);
 
+    no_landing_pads(tcx, body);
+
     // Make sure we remove dead blocks to remove
     // unrelated code from the drop part of the function
     simplify::remove_dead_blocks(tcx, body);
@@ -1207,10 +1212,10 @@ fn create_cases<'tcx>(
                     let resume_arg = Local::new(2); // 0 = return, 1 = self
                     statements.push(Statement {
                         source_info,
-                        kind: StatementKind::Assign(Box::new((
+                        kind: StatementKind::Assign(box (
                             point.resume_arg,
                             Rvalue::Use(Operand::Move(resume_arg.into())),
-                        ))),
+                        )),
                     });
                 }
 
@@ -1287,10 +1292,10 @@ impl<'tcx> MirPass<'tcx> for StateTransform {
             0,
             Statement {
                 source_info,
-                kind: StatementKind::Assign(Box::new((
+                kind: StatementKind::Assign(box (
                     new_resume_local.into(),
                     Rvalue::Use(Operand::Move(resume_local.into())),
-                ))),
+                )),
             },
         );
 

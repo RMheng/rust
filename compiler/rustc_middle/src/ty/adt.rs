@@ -209,7 +209,7 @@ impl<'tcx> AdtDef {
         self.flags.contains(AdtFlags::IS_UNION)
     }
 
-    /// Returns `true` if this is an enum.
+    /// Returns `true` if this is a enum.
     #[inline]
     pub fn is_enum(&self) -> bool {
         self.flags.contains(AdtFlags::IS_ENUM)

@@ -1,4 +1,6 @@
-#![feature(generic_const_exprs)]
+// check-pass
+
+#![feature(const_generics)]
 #![allow(incomplete_features, const_evaluatable_unchecked)]
 
 use std::marker::PhantomData;
@@ -8,7 +10,7 @@ struct DataHolder<T> {
 }
 
 impl<T: Copy> DataHolder<T> {
-    const ITEM_IS_COPY: [(); 1 - { //~ ERROR unconstrained generic constant
+    const ITEM_IS_COPY: [(); 1 - {
         trait NotCopy {
             const VALUE: bool = false;
         }

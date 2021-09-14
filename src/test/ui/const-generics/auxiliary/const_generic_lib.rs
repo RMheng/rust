@@ -1,3 +1,6 @@
+#![cfg_attr(full, feature(const_generics))]
+#![cfg_attr(full, allow(incomplete_features))]
+
 pub struct Struct<const N: usize>(pub [u8; N]);
 
 pub type Alias = Struct<2>;

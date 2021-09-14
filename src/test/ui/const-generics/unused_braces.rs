@@ -1,6 +1,11 @@
 // check-pass
 // run-rustfix
+// revisions: full min
+
+#![cfg_attr(full, feature(const_generics))]
+#![cfg_attr(full, allow(incomplete_features))]
 #![warn(unused_braces)]
+
 
 struct A<const N: usize>;
 

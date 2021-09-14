@@ -8,7 +8,6 @@
 // ignore-sparc64
 
 #![feature(llvm_asm)]
-#![allow(deprecated)] // llvm_asm!
 
 #[cfg(any(target_arch = "x86",
             target_arch = "x86_64",

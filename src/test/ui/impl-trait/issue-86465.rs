@@ -1,4 +1,4 @@
-#![feature(type_alias_impl_trait)]
+#![feature(min_type_alias_impl_trait)]
 
 type X<'a, 'b> = impl std::fmt::Debug;
 

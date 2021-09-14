@@ -1,7 +1,6 @@
 // run-pass
 
 #![feature(llvm_asm)]
-#![allow(deprecated)] // llvm_asm!
 #![allow(dead_code)]
 
 use std::cell::Cell;

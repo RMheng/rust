@@ -135,11 +135,6 @@ impl CodegenCx<'ll, 'tcx> {
             return false;
         }
 
-        // Match clang by only supporting COFF and ELF for now.
-        if self.tcx.sess.target.is_like_osx {
-            return false;
-        }
-
         // Static relocation model should force copy relocations everywhere.
         if self.tcx.sess.relocation_model() == RelocModel::Static {
             return true;

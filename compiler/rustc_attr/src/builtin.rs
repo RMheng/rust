@@ -87,6 +87,50 @@ pub enum OptimizeAttr {
     Size,
 }
 
+#[derive(Copy, Clone, PartialEq)]
+pub enum UnwindAttr {
+    Allowed,
+    Aborts,
+}
+
+/// Determine what `#[unwind]` attribute is present in `attrs`, if any.
+pub fn find_unwind_attr(sess: &Session, attrs: &[Attribute]) -> Option<UnwindAttr> {
+    attrs.iter().fold(None, |ia, attr| {
+        if sess.check_name(attr, sym::unwind) {
+            if let Some(meta) = attr.meta() {
+                if let MetaItemKind::List(items) = meta.kind {
+                    if items.len() == 1 {
+                        if items[0].has_name(sym::allowed) {
+                            return Some(UnwindAttr::Allowed);
+                        } else if items[0].has_name(sym::aborts) {
+                            return Some(UnwindAttr::Aborts);
+                        }
+                    }
+
+                    struct_span_err!(
+                        sess.diagnostic(),
+                        attr.span,
+                        E0633,
+                        "malformed `unwind` attribute input"
+                    )
+                    .span_label(attr.span, "invalid argument")
+                    .span_suggestions(
+                        attr.span,
+                        "the allowed arguments are `allowed` and `aborts`",
+                        (vec!["allowed", "aborts"])
+                            .into_iter()
+                            .map(|s| format!("#[unwind({})]", s)),
+                        Applicability::MachineApplicable,
+                    )
+                    .emit();
+                }
+            }
+        }
+
+        ia
+    })
+}
+
 /// Represents the following attributes:
 ///
 /// - `#[stable]`
@@ -165,6 +209,8 @@ where
         {
             continue; // not a stability level
         }
+
+        sess.mark_attr_used(attr);
 
         let meta = attr.meta();
 
@@ -634,7 +680,8 @@ where
     let diagnostic = &sess.parse_sess.span_diagnostic;
 
     'outer: for attr in attrs_iter {
-        if !(attr.has_name(sym::deprecated) || attr.has_name(sym::rustc_deprecated)) {
+        if !(sess.check_name(attr, sym::deprecated) || sess.check_name(attr, sym::rustc_deprecated))
+        {
             continue;
         }
 
@@ -697,17 +744,17 @@ where
                                     continue 'outer;
                                 }
                             }
-                            sym::note if attr.has_name(sym::deprecated) => {
+                            sym::note if sess.check_name(attr, sym::deprecated) => {
                                 if !get(mi, &mut note) {
                                     continue 'outer;
                                 }
                             }
-                            sym::reason if attr.has_name(sym::rustc_deprecated) => {
+                            sym::reason if sess.check_name(attr, sym::rustc_deprecated) => {
                                 if !get(mi, &mut note) {
                                     continue 'outer;
                                 }
                             }
-                            sym::suggestion if attr.has_name(sym::rustc_deprecated) => {
+                            sym::suggestion if sess.check_name(attr, sym::rustc_deprecated) => {
                                 if !get(mi, &mut suggestion) {
                                     continue 'outer;
                                 }
@@ -718,7 +765,7 @@ where
                                     meta.span(),
                                     AttrError::UnknownMetaItem(
                                         pprust::path_to_string(&mi.path),
-                                        if attr.has_name(sym::deprecated) {
+                                        if sess.check_name(attr, sym::deprecated) {
                                             &["since", "note"]
                                         } else {
                                             &["since", "reason", "suggestion"]
@@ -744,11 +791,11 @@ where
             }
         }
 
-        if suggestion.is_some() && attr.has_name(sym::deprecated) {
+        if suggestion.is_some() && sess.check_name(attr, sym::deprecated) {
             unreachable!("only allowed on rustc_deprecated")
         }
 
-        if attr.has_name(sym::rustc_deprecated) {
+        if sess.check_name(attr, sym::rustc_deprecated) {
             if since.is_none() {
                 handle_errors(&sess.parse_sess, attr.span, AttrError::MissingSince);
                 continue;
@@ -760,7 +807,9 @@ where
             }
         }
 
-        let is_since_rustc_version = attr.has_name(sym::rustc_deprecated);
+        sess.mark_attr_used(&attr);
+
+        let is_since_rustc_version = sess.check_name(attr, sym::rustc_deprecated);
         depr = Some((Deprecation { since, note, suggestion, is_since_rustc_version }, attr.span));
     }
 
@@ -811,6 +860,7 @@ pub fn find_repr_attrs(sess: &Session, attr: &Attribute) -> Vec<ReprAttr> {
     let diagnostic = &sess.parse_sess.span_diagnostic;
     if attr.has_name(sym::repr) {
         if let Some(items) = attr.meta_item_list() {
+            sess.mark_attr_used(attr);
             for item in items {
                 let mut recognised = false;
                 if item.is_word() {
@@ -1009,13 +1059,14 @@ pub enum TransparencyError {
 }
 
 pub fn find_transparency(
+    sess: &Session,
     attrs: &[Attribute],
     macro_rules: bool,
 ) -> (Transparency, Option<TransparencyError>) {
     let mut transparency = None;
     let mut error = None;
     for attr in attrs {
-        if attr.has_name(sym::rustc_macro_transparency) {
+        if sess.check_name(attr, sym::rustc_macro_transparency) {
             if let Some((_, old_span)) = transparency {
                 error = Some(TransparencyError::MultipleTransparencyAttrs(old_span, attr.span));
                 break;

@@ -1,5 +1,5 @@
 // check-pass
-#![feature(type_alias_impl_trait)]
+#![feature(min_type_alias_impl_trait)]
 
 type X<A: ToString + Clone, B: ToString + Clone> = impl ToString;
 

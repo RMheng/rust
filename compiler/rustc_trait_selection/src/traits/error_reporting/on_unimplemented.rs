@@ -124,10 +124,11 @@ impl<'a, 'tcx> InferCtxtExt<'tcx> for InferCtxt<'a, 'tcx> {
             self.impl_similar_to(trait_ref, obligation).unwrap_or_else(|| trait_ref.def_id());
         let trait_ref = trait_ref.skip_binder();
 
-        let mut flags = vec![(
+        let mut flags = vec![];
+        flags.push((
             sym::ItemContext,
             self.describe_enclosure(obligation.cause.body_id).map(|s| s.to_owned()),
-        )];
+        ));
 
         match obligation.cause.code {
             ObligationCauseCode::BuiltinDerivedObligation(..)

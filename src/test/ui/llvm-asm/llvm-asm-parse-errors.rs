@@ -1,5 +1,4 @@
 #![feature(llvm_asm)]
-#![allow(deprecated)] // llvm_asm!
 
 fn main() {
     llvm_asm!(); //~ ERROR requires a string literal as an argument

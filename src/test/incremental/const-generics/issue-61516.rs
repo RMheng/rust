@@ -1,5 +1,7 @@
 // revisions:rpass1
 
+#![feature(const_generics)]
+
 struct FakeArray<T, const N: usize>(T);
 
 impl<T, const N: usize> FakeArray<T, N> {

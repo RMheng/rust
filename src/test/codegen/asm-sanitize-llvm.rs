@@ -7,7 +7,6 @@
 #![no_core]
 #![feature(no_core, lang_items, rustc_attrs)]
 #![crate_type = "rlib"]
-#![allow(named_asm_labels)]
 
 #[rustc_builtin_macro]
 macro_rules! asm {

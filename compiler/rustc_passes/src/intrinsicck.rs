@@ -139,7 +139,6 @@ impl ExprVisitor<'tcx> {
         reg: InlineAsmRegOrRegClass,
         expr: &hir::Expr<'tcx>,
         template: &[InlineAsmTemplatePiece],
-        is_input: bool,
         tied_input: Option<(&hir::Expr<'tcx>, Option<InlineAsmType>)>,
     ) -> Option<InlineAsmType> {
         // Check the type against the allowed types for inline asm.
@@ -151,9 +150,7 @@ impl ExprVisitor<'tcx> {
             _ => unreachable!(),
         };
         let asm_ty = match *ty.kind() {
-            // `!` is allowed for input but not for output (issue #87802)
-            ty::Never if is_input => return None,
-            ty::Error(_) => return None,
+            ty::Never | ty::Error(_) => return None,
             ty::Int(IntTy::I8) | ty::Uint(UintTy::U8) => Some(InlineAsmType::I8),
             ty::Int(IntTy::I16) | ty::Uint(UintTy::U16) => Some(InlineAsmType::I16),
             ty::Int(IntTy::I32) | ty::Uint(UintTy::U32) => Some(InlineAsmType::I32),
@@ -353,26 +350,24 @@ impl ExprVisitor<'tcx> {
         for (idx, (op, _)) in asm.operands.iter().enumerate() {
             match *op {
                 hir::InlineAsmOperand::In { reg, ref expr } => {
-                    self.check_asm_operand_type(idx, reg, expr, asm.template, true, None);
+                    self.check_asm_operand_type(idx, reg, expr, asm.template, None);
                 }
                 hir::InlineAsmOperand::Out { reg, late: _, ref expr } => {
                     if let Some(expr) = expr {
-                        self.check_asm_operand_type(idx, reg, expr, asm.template, false, None);
+                        self.check_asm_operand_type(idx, reg, expr, asm.template, None);
                     }
                 }
                 hir::InlineAsmOperand::InOut { reg, late: _, ref expr } => {
-                    self.check_asm_operand_type(idx, reg, expr, asm.template, false, None);
+                    self.check_asm_operand_type(idx, reg, expr, asm.template, None);
                 }
                 hir::InlineAsmOperand::SplitInOut { reg, late: _, ref in_expr, ref out_expr } => {
-                    let in_ty =
-                        self.check_asm_operand_type(idx, reg, in_expr, asm.template, true, None);
+                    let in_ty = self.check_asm_operand_type(idx, reg, in_expr, asm.template, None);
                     if let Some(out_expr) = out_expr {
                         self.check_asm_operand_type(
                             idx,
                             reg,
                             out_expr,
                             asm.template,
-                            false,
                             Some((in_expr, in_ty)),
                         );
                     }

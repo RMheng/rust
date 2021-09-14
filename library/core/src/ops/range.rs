@@ -812,12 +812,12 @@ pub trait RangeBounds<T: ?Sized> {
         U: ?Sized + PartialOrd<T>,
     {
         (match self.start_bound() {
-            Included(start) => start <= item,
-            Excluded(start) => start < item,
+            Included(ref start) => *start <= item,
+            Excluded(ref start) => *start < item,
             Unbounded => true,
         }) && (match self.end_bound() {
-            Included(end) => item <= end,
-            Excluded(end) => item < end,
+            Included(ref end) => item <= *end,
+            Excluded(ref end) => item < *end,
             Unbounded => true,
         })
     }

@@ -10,8 +10,8 @@ fn main() {
     let mut x = NonExhaustiveMonovariant::Variant(1);
     let y = &mut x;
     match x {
-        //~^ ERROR cannot use `x` because it was mutably borrowed
         NonExhaustiveMonovariant::Variant(_) => {},
+        //~^ ERROR cannot use `x` because it was mutably borrowed
         _ => {},
     }
     drop(y);

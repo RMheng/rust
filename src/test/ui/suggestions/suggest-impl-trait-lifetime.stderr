@@ -5,13 +5,7 @@ LL | fn foo(d: impl Debug) {
    |           ---------- help: consider adding an explicit lifetime bound...: `impl Debug + 'static`
 LL |
 LL |     bar(d);
-   |     ^^^ ...so that the type `impl Debug` will meet its required lifetime bounds...
-   |
-note: ...that is required by this bound
-  --> $DIR/suggest-impl-trait-lifetime.rs:12:24
-   |
-LL | fn bar(d: impl Debug + 'static) {
-   |                        ^^^^^^^
+   |     ^^^ ...so that the type `impl Debug` will meet its required lifetime bounds
 
 error: aborting due to previous error
 

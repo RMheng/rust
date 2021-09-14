@@ -127,7 +127,6 @@ pub enum GenericArg {
     Lifetime(String),
     Type(Type),
     Const(Constant),
-    Infer,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

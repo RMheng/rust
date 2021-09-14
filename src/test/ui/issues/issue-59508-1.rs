@@ -1,8 +1,9 @@
 #![allow(dead_code)]
-#![feature(const_generics_defaults)]
+#![feature(const_generics)]
+//~^ WARN the feature `const_generics` is incomplete
 
 // This test checks that generic parameter re-ordering diagnostic suggestions mention that
-// consts come after types and lifetimes when the `const_generics_defaults` feature is enabled.
+// consts come after types and lifetimes when the `const_generics` feature is enabled.
 // We cannot run rustfix on this test because of the above const generics warning.
 
 struct A;

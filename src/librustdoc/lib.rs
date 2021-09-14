@@ -5,7 +5,7 @@
 #![feature(rustc_private)]
 #![feature(array_methods)]
 #![feature(box_patterns)]
-#![feature(control_flow_enum)]
+#![feature(box_syntax)]
 #![feature(in_band_lifetimes)]
 #![feature(nll)]
 #![feature(test)]
@@ -13,6 +13,7 @@
 #![feature(never_type)]
 #![feature(once_cell)]
 #![feature(type_ascription)]
+#![feature(iter_intersperse)]
 #![recursion_limit = "256"]
 #![warn(rustc::internal)]
 
@@ -30,7 +31,6 @@ extern crate tracing;
 // Dependencies listed in Cargo.toml do not need `extern crate`.
 
 extern crate rustc_ast;
-extern crate rustc_ast_lowering;
 extern crate rustc_ast_pretty;
 extern crate rustc_attr;
 extern crate rustc_data_structures;
@@ -295,13 +295,6 @@ fn opts() -> Vec<RustcOptGroup> {
                 "NAME=URL",
             )
         }),
-        unstable("extern-html-root-takes-precedence", |o| {
-            o.optflagmulti(
-                "",
-                "extern-html-root-takes-precedence",
-                "give precedence to `--extern-html-root-url`, not `html_root_url`",
-            )
-        }),
         stable("plugin-path", |o| o.optmulti("", "plugin-path", "removed", "DIR")),
         stable("C", |o| {
             o.optmulti("C", "codegen", "pass a codegen option to rustc", "OPT[=VALUE]")
@@ -504,11 +497,10 @@ fn opts() -> Vec<RustcOptGroup> {
         unstable("disable-minification", |o| {
             o.optflagmulti("", "disable-minification", "Disable minification applied on JS files")
         }),
-        stable("allow", |o| o.optmulti("A", "allow", "Set lint allowed", "LINT")),
-        stable("warn", |o| o.optmulti("W", "warn", "Set lint warnings", "LINT")),
-        stable("force-warn", |o| o.optmulti("", "force-warn", "Set lint force-warn", "LINT")),
-        stable("deny", |o| o.optmulti("D", "deny", "Set lint denied", "LINT")),
-        stable("forbid", |o| o.optmulti("F", "forbid", "Set lint forbidden", "LINT")),
+        stable("warn", |o| o.optmulti("W", "warn", "Set lint warnings", "OPT")),
+        stable("allow", |o| o.optmulti("A", "allow", "Set lint allowed", "OPT")),
+        stable("deny", |o| o.optmulti("D", "deny", "Set lint denied", "OPT")),
+        stable("forbid", |o| o.optmulti("F", "forbid", "Set lint forbidden", "OPT")),
         stable("cap-lints", |o| {
             o.optmulti(
                 "",
@@ -517,6 +509,14 @@ fn opts() -> Vec<RustcOptGroup> {
                  More restrictive lints are capped at this \
                  level. By default, it is at `forbid` level.",
                 "LEVEL",
+            )
+        }),
+        unstable("force-warn", |o| {
+            o.optopt(
+                "",
+                "force-warn",
+                "Lints that will warn even if allowed somewhere else",
+                "LINTS",
             )
         }),
         unstable("index-page", |o| {
@@ -606,13 +606,6 @@ fn opts() -> Vec<RustcOptGroup> {
         }),
         unstable("nocapture", |o| {
             o.optflag("", "nocapture", "Don't capture stdout and stderr of tests")
-        }),
-        unstable("generate-link-to-definition", |o| {
-            o.optflag(
-                "",
-                "generate-link-to-definition",
-                "Make the identifiers in the HTML source code pages navigable",
-            )
         }),
     ]
 }
@@ -725,6 +718,7 @@ fn main_options(options: config::Options) -> MainResult {
     let default_passes = options.default_passes;
     let output_format = options.output_format;
     // FIXME: fix this clone (especially render_options)
+    let externs = options.externs.clone();
     let manual_passes = options.manual_passes.clone();
     let render_options = options.render_options.clone();
     let config = core::create_config(options);
@@ -742,7 +736,7 @@ fn main_options(options: config::Options) -> MainResult {
             // We need to hold on to the complete resolver, so we cause everything to be
             // cloned for the analysis passes to use. Suboptimal, but necessary in the
             // current architecture.
-            let resolver = core::create_resolver(queries, &sess);
+            let resolver = core::create_resolver(externs, queries, &sess);
 
             if sess.has_errors() {
                 sess.fatal("Compilation failed, aborting rustdoc");

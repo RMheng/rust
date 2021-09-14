@@ -1,5 +1,5 @@
 #![crate_name = "foo"]
-#![feature(generic_const_exprs)]
+#![feature(lazy_normalization_consts)]
 #![allow(incomplete_features)]
 
 // Checking if `Send` is implemented for `Hasher` requires us to evaluate a `ConstEquate` predicate,

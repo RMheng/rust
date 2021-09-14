@@ -10,8 +10,7 @@ Language
 
 Compiler
 --------
-- [Added tier 3\* support for `powerpc-unknown-freebsd`.][87370]
-- [Added tier 3 support for `powerpc64le-unknown-freebsd`.][83572]
+- [Added tier 3\* support for `powerpc64le-unknown-freebsd`.][83572]
 
 \* Refer to Rust's [platform support page][platform-support-doc] for more
    information on Rust's tiered platform support.
@@ -24,17 +23,6 @@ Libraries
   no longer reject certain valid floating point values, and reduce
   the produced code size for non-stripped artifacts.
 - [`string::Drain` now implements `AsRef<str>` and `AsRef<[u8]>`.][86858]
-- [`collections::{BinaryHeap, BTreeSet, HashSet, LinkedList, VecDeque}` now
-  implement `From<[T; N]>`.][84111]
-- [`collections::{BTreeMap, HashMap}` now implement `From<[(K, V); N]>`.][84111]
-  This allows you to write the following;
-  ```rust
-  let highscores = std::collections::HashMap::from([
-      ("Alice", 9000u32),
-      ("Bob", 7250),
-      ("Charlie", 5500),
-  ]);
-  ```
 
 Stabilised APIs
 ---------------

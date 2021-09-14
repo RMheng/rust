@@ -43,10 +43,7 @@ crate struct ParserAnyMacro<'a> {
     /// The ident of the macro we're parsing
     macro_ident: Ident,
     lint_node_id: NodeId,
-    is_trailing_mac: bool,
     arm_span: Span,
-    /// Whether or not this macro is defined in the current crate
-    is_local: bool,
 }
 
 crate fn annotate_err_with_kind(
@@ -119,15 +116,8 @@ fn emit_frag_parse_err(
 
 impl<'a> ParserAnyMacro<'a> {
     crate fn make(mut self: Box<ParserAnyMacro<'a>>, kind: AstFragmentKind) -> AstFragment {
-        let ParserAnyMacro {
-            site_span,
-            macro_ident,
-            ref mut parser,
-            lint_node_id,
-            arm_span,
-            is_trailing_mac,
-            is_local,
-        } = *self;
+        let ParserAnyMacro { site_span, macro_ident, ref mut parser, lint_node_id, arm_span } =
+            *self;
         let snapshot = &mut parser.clone();
         let fragment = match parse_ast_fragment(parser, kind) {
             Ok(f) => f,
@@ -141,15 +131,12 @@ impl<'a> ParserAnyMacro<'a> {
         // `macro_rules! m { () => { panic!(); } }` isn't parsed by `.parse_expr()`,
         // but `m!()` is allowed in expression positions (cf. issue #34706).
         if kind == AstFragmentKind::Expr && parser.token == token::Semi {
-            if is_local {
-                parser.sess.buffer_lint_with_diagnostic(
-                    SEMICOLON_IN_EXPRESSIONS_FROM_MACROS,
-                    parser.token.span,
-                    lint_node_id,
-                    "trailing semicolon in macro used in expression position",
-                    BuiltinLintDiagnostics::TrailingMacro(is_trailing_mac, macro_ident),
-                );
-            }
+            parser.sess.buffer_lint(
+                SEMICOLON_IN_EXPRESSIONS_FROM_MACROS,
+                parser.token.span,
+                lint_node_id,
+                "trailing semicolon in macro used in expression position",
+            );
             parser.bump();
         }
 
@@ -167,7 +154,6 @@ struct MacroRulesMacroExpander {
     lhses: Vec<mbe::TokenTree>,
     rhses: Vec<mbe::TokenTree>,
     valid: bool,
-    is_local: bool,
 }
 
 impl TTMacroExpander for MacroRulesMacroExpander {
@@ -189,7 +175,6 @@ impl TTMacroExpander for MacroRulesMacroExpander {
             input,
             &self.lhses,
             &self.rhses,
-            self.is_local,
         )
     }
 }
@@ -217,7 +202,6 @@ fn generic_extension<'cx>(
     arg: TokenStream,
     lhses: &[mbe::TokenTree],
     rhses: &[mbe::TokenTree],
-    is_local: bool,
 ) -> Box<dyn MacResult + 'cx> {
     let sess = &cx.sess.parse_sess;
 
@@ -317,9 +301,7 @@ fn generic_extension<'cx>(
                     site_span: sp,
                     macro_ident: name,
                     lint_node_id: cx.current_expansion.lint_node_id,
-                    is_trailing_mac: cx.current_expansion.is_trailing_mac,
                     arm_span,
-                    is_local,
                 });
             }
             Failure(token, msg) => match best_failure {
@@ -535,7 +517,7 @@ pub fn compile_declarative_macro(
 
     valid &= macro_check::check_meta_variables(&sess.parse_sess, def.id, def.span, &lhses, &rhses);
 
-    let (transparency, transparency_error) = attr::find_transparency(&def.attrs, macro_rules);
+    let (transparency, transparency_error) = attr::find_transparency(sess, &def.attrs, macro_rules);
     match transparency_error {
         Some(TransparencyError::UnknownTransparency(value, span)) => {
             diag.span_err(span, &format!("unknown macro transparency: `{}`", value))
@@ -553,9 +535,6 @@ pub fn compile_declarative_macro(
         lhses,
         rhses,
         valid,
-        // Macros defined in the current crate have a real node id,
-        // whereas macros from an external crate have a dummy id.
-        is_local: def.id != DUMMY_NODE_ID,
     }))
 }
 
@@ -1221,7 +1200,7 @@ fn is_in_follow(tok: &mbe::TokenTree, kind: NonterminalKind) -> IsInFollow {
 
 fn quoted_tt_to_string(tt: &mbe::TokenTree) -> String {
     match *tt {
-        mbe::TokenTree::Token(ref token) => pprust::token_to_string(&token).into(),
+        mbe::TokenTree::Token(ref token) => pprust::token_to_string(&token),
         mbe::TokenTree::MetaVar(_, name) => format!("${}", name),
         mbe::TokenTree::MetaVarDecl(_, name, Some(kind)) => format!("${}:{}", name, kind),
         mbe::TokenTree::MetaVarDecl(_, name, None) => format!("${}:", name),

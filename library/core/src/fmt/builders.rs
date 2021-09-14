@@ -23,7 +23,10 @@ impl<'buf, 'state> PadAdapter<'buf, 'state> {
         slot: &'slot mut Option<Self>,
         state: &'state mut PadAdapterState,
     ) -> fmt::Formatter<'slot> {
-        fmt.wrap_buf(move |buf| slot.insert(PadAdapter { buf, state }))
+        fmt.wrap_buf(move |buf| {
+            *slot = Some(PadAdapter { buf, state });
+            slot.as_mut().unwrap()
+        })
     }
 }
 

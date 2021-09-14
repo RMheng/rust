@@ -1,8 +1,11 @@
 // revisions: full min
-#![cfg_attr(full, allow(incomplete_features))]
-#![cfg_attr(full, feature(generic_const_exprs))]
 
-use std::mem::MaybeUninit;
+#![cfg_attr(full, allow(incomplete_features))]
+#![cfg_attr(full, feature(const_generics))]
+
+use std::marker::PhantomData;
+
+use std::mem::{self, MaybeUninit};
 
 struct Bug<S> {
     //~^ ERROR parameter `S` is never used

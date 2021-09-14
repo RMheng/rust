@@ -619,7 +619,7 @@ impl Step for Rustc {
 }
 
 macro_rules! tool_doc {
-    ($tool: ident, $should_run: literal, $path: literal, [$($krate: literal),+ $(,)?] $(,)?) => {
+    ($tool: ident, $should_run: literal, $path: literal, [$($krate: literal),+ $(,)?], binary=$bin:expr) => {
         #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
         pub struct $tool {
             stage: u32,
@@ -688,7 +688,9 @@ macro_rules! tool_doc {
                     cargo.arg("-p").arg($krate);
                 )+
 
-                cargo.rustdocflag("--document-private-items");
+                if !$bin {
+                    cargo.rustdocflag("--document-private-items");
+                }
                 cargo.rustdocflag("--enable-index-page");
                 cargo.rustdocflag("--show-type-layout");
                 cargo.rustdocflag("-Zunstable-options");
@@ -698,12 +700,19 @@ macro_rules! tool_doc {
     }
 }
 
-tool_doc!(Rustdoc, "rustdoc-tool", "src/tools/rustdoc", ["rustdoc", "rustdoc-json-types"]);
+tool_doc!(
+    Rustdoc,
+    "rustdoc-tool",
+    "src/tools/rustdoc",
+    ["rustdoc", "rustdoc-json-types"],
+    binary = false
+);
 tool_doc!(
     Rustfmt,
     "rustfmt-nightly",
     "src/tools/rustfmt",
     ["rustfmt-nightly", "rustfmt-config_proc_macro"],
+    binary = true
 );
 
 #[derive(Ord, PartialOrd, Debug, Copy, Clone, Hash, PartialEq, Eq)]

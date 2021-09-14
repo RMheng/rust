@@ -1,16 +1,20 @@
 // revisions: full min
 
 #![cfg_attr(full, allow(incomplete_features))]
-#![cfg_attr(full, feature(generic_const_exprs))]
+#![cfg_attr(full, feature(const_generics))]
 
-struct Bug<S: ?Sized> {
+use std::mem::MaybeUninit;
+
+struct Bug<S> {
+    //~^ ERROR parameter `S` is never used
     A: [(); {
-        //[full]~^ ERROR overly complex generic constant
-        let x: Option<Box<Self>> = None;
-        //[min]~^ ERROR generic `Self` types are currently not permitted in anonymous constants
+        let x: S = MaybeUninit::uninit();
+        //[min]~^ ERROR generic parameters may not be used in const operations
+        //[full]~^^ ERROR mismatched types
+        let b = &*(&x as *const _ as *const S);
+        //[min]~^ ERROR generic parameters may not be used in const operations
         0
     }],
-    B: S
 }
 
 fn main() {}

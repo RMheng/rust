@@ -8,8 +8,7 @@ pub struct Mutex {
     inner: SpinMutex<WaitVariable<bool>>,
 }
 
-// not movable: see UnsafeList implementation
-pub type MovableMutex = Box<Mutex>;
+pub type MovableMutex = Mutex;
 
 // Implementation according to “Operating Systems: Three Easy Pieces”, chapter 28
 impl Mutex {

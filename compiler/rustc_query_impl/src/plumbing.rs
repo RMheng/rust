@@ -7,9 +7,7 @@ use rustc_middle::dep_graph::{DepKind, DepNode, DepNodeIndex, SerializedDepNodeI
 use rustc_middle::ty::tls::{self, ImplicitCtxt};
 use rustc_middle::ty::{self, TyCtxt};
 use rustc_query_system::dep_graph::HasDepContext;
-use rustc_query_system::query::{
-    QueryContext, QueryDescription, QueryJobId, QueryMap, QuerySideEffects,
-};
+use rustc_query_system::query::{QueryContext, QueryDescription, QueryJobId, QueryMap};
 
 use rustc_data_structures::sync::Lock;
 use rustc_data_structures::thin_vec::ThinVec;
@@ -85,27 +83,27 @@ impl QueryContext for QueryCtxt<'tcx> {
     }
 
     // Interactions with on_disk_cache
-    fn load_side_effects(&self, prev_dep_node_index: SerializedDepNodeIndex) -> QuerySideEffects {
+    fn load_diagnostics(&self, prev_dep_node_index: SerializedDepNodeIndex) -> Vec<Diagnostic> {
         self.queries
             .on_disk_cache
             .as_ref()
-            .map(|c| c.load_side_effects(**self, prev_dep_node_index))
+            .map(|c| c.load_diagnostics(**self, prev_dep_node_index))
             .unwrap_or_default()
     }
 
-    fn store_side_effects(&self, dep_node_index: DepNodeIndex, side_effects: QuerySideEffects) {
+    fn store_diagnostics(&self, dep_node_index: DepNodeIndex, diagnostics: ThinVec<Diagnostic>) {
         if let Some(c) = self.queries.on_disk_cache.as_ref() {
-            c.store_side_effects(dep_node_index, side_effects)
+            c.store_diagnostics(dep_node_index, diagnostics)
         }
     }
 
-    fn store_side_effects_for_anon_node(
+    fn store_diagnostics_for_anon_node(
         &self,
         dep_node_index: DepNodeIndex,
-        side_effects: QuerySideEffects,
+        diagnostics: ThinVec<Diagnostic>,
     ) {
         if let Some(c) = self.queries.on_disk_cache.as_ref() {
-            c.store_side_effects_for_anon_node(dep_node_index, side_effects)
+            c.store_diagnostics_for_anon_node(dep_node_index, diagnostics)
         }
     }
 
@@ -165,7 +163,7 @@ impl<'tcx> QueryCtxt<'tcx> {
     pub(super) fn encode_query_results(
         self,
         encoder: &mut on_disk_cache::CacheEncoder<'a, 'tcx, opaque::FileEncoder>,
-        query_result_index: &mut on_disk_cache::EncodedDepNodeIndex,
+        query_result_index: &mut on_disk_cache::EncodedQueryResultIndex,
     ) -> opaque::FileEncodeResult {
         macro_rules! encode_queries {
             ($($query:ident,)*) => {
@@ -337,13 +335,6 @@ macro_rules! define_queries {
                 } else {
                     Some(key.default_span(*tcx))
                 };
-                let def_id = key.key_as_def_id();
-                let def_kind = def_id
-                    .and_then(|def_id| def_id.as_local())
-                    // Use `tcx.hir().opt_def_kind()` to reduce the chance of
-                    // accidentally triggering an infinite query loop.
-                    .and_then(|def_id| tcx.hir().opt_def_kind(def_id))
-                    .map(|def_kind| $crate::util::def_kind_to_simple_def_kind(def_kind));
                 let hash = || {
                     let mut hcx = tcx.create_stable_hashing_context();
                     let mut hasher = StableHasher::new();
@@ -352,7 +343,7 @@ macro_rules! define_queries {
                     hasher.finish::<u64>()
                 };
 
-                QueryStackFrame::new(name, description, span, def_kind, hash)
+                QueryStackFrame::new(name, description, span, hash)
             })*
         }
 

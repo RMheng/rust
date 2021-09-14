@@ -3,7 +3,7 @@
 // revisions: migrate mir
 //[mir]compile-flags: -Z borrowck=mir
 
-#![feature(type_alias_impl_trait)]
+#![feature(min_type_alias_impl_trait)]
 trait Trait<'a, 'b> {}
 impl<T> Trait<'_, '_> for T {}
 

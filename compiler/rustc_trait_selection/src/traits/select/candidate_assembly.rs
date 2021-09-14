@@ -144,7 +144,7 @@ impl<'cx, 'tcx> SelectionContext<'cx, 'tcx> {
         // Instead, we select the right impl now but report "`Bar` does
         // not implement `Clone`".
         if candidates.len() == 1 {
-            return self.filter_impls(candidates.pop().unwrap(), stack.obligation);
+            return self.filter_negative_and_reservation_impls(candidates.pop().unwrap());
         }
 
         // Winnow, but record the exact outcome of evaluation, which
@@ -217,7 +217,7 @@ impl<'cx, 'tcx> SelectionContext<'cx, 'tcx> {
         }
 
         // Just one candidate left.
-        self.filter_impls(candidates.pop().unwrap().candidate, stack.obligation)
+        self.filter_negative_and_reservation_impls(candidates.pop().unwrap().candidate)
     }
 
     pub(super) fn assemble_candidates<'o>(
@@ -690,50 +690,29 @@ impl<'cx, 'tcx> SelectionContext<'cx, 'tcx> {
 
         debug!(?source, ?target, "assemble_candidates_for_unsizing");
 
-        match (source.kind(), target.kind()) {
+        let may_apply = match (source.kind(), target.kind()) {
             // Trait+Kx+'a -> Trait+Ky+'b (upcasts).
             (&ty::Dynamic(ref data_a, ..), &ty::Dynamic(ref data_b, ..)) => {
-                // Upcast coercions permit several things:
+                // Upcasts permit two things:
                 //
                 // 1. Dropping auto traits, e.g., `Foo + Send` to `Foo`
                 // 2. Tightening the region bound, e.g., `Foo + 'a` to `Foo + 'b` if `'a: 'b`
-                // 3. Tightening trait to its super traits, eg. `Foo` to `Bar` if `Foo: Bar`
                 //
-                // Note that neither of the first two of these changes requires any
-                // change at runtime. The third needs to change pointer metadata at runtime.
+                // Note that neither of these changes requires any
+                // change at runtime. Eventually this will be
+                // generalized.
                 //
-                // We always perform upcasting coercions when we can because of reason
+                // We always upcast when we can because of reason
                 // #2 (region bounds).
-                let auto_traits_compatible = data_b
-                    .auto_traits()
-                    // All of a's auto traits need to be in b's auto traits.
-                    .all(|b| data_a.auto_traits().any(|a| a == b));
-                if auto_traits_compatible {
-                    let principal_def_id_a = data_a.principal_def_id();
-                    let principal_def_id_b = data_b.principal_def_id();
-                    if principal_def_id_a == principal_def_id_b {
-                        // no cyclic
-                        candidates.vec.push(BuiltinUnsizeCandidate);
-                    } else if principal_def_id_a.is_some() && principal_def_id_b.is_some() {
-                        // not casual unsizing, now check whether this is trait upcasting coercion.
-                        let principal_a = data_a.principal().unwrap();
-                        let target_trait_did = principal_def_id_b.unwrap();
-                        let source_trait_ref = principal_a.with_self_ty(self.tcx(), source);
-                        for (idx, upcast_trait_ref) in
-                            util::supertraits(self.tcx(), source_trait_ref).enumerate()
-                        {
-                            if upcast_trait_ref.def_id() == target_trait_did {
-                                candidates.vec.push(TraitUpcastingUnsizeCandidate(idx));
-                            }
-                        }
-                    }
-                }
+                data_a.principal_def_id() == data_b.principal_def_id()
+                    && data_b
+                        .auto_traits()
+                        // All of a's auto traits need to be in b's auto traits.
+                        .all(|b| data_a.auto_traits().any(|a| a == b))
             }
 
             // `T` -> `Trait`
-            (_, &ty::Dynamic(..)) => {
-                candidates.vec.push(BuiltinUnsizeCandidate);
-            }
+            (_, &ty::Dynamic(..)) => true,
 
             // Ambiguous handling is below `T` -> `Trait`, because inference
             // variables can still implement `Unsize<Trait>` and nested
@@ -741,29 +720,26 @@ impl<'cx, 'tcx> SelectionContext<'cx, 'tcx> {
             (&ty::Infer(ty::TyVar(_)), _) | (_, &ty::Infer(ty::TyVar(_))) => {
                 debug!("assemble_candidates_for_unsizing: ambiguous");
                 candidates.ambiguous = true;
+                false
             }
 
             // `[T; n]` -> `[T]`
-            (&ty::Array(..), &ty::Slice(_)) => {
-                candidates.vec.push(BuiltinUnsizeCandidate);
-            }
+            (&ty::Array(..), &ty::Slice(_)) => true,
 
             // `Struct<T>` -> `Struct<U>`
             (&ty::Adt(def_id_a, _), &ty::Adt(def_id_b, _)) if def_id_a.is_struct() => {
-                if def_id_a == def_id_b {
-                    candidates.vec.push(BuiltinUnsizeCandidate);
-                }
+                def_id_a == def_id_b
             }
 
             // `(.., T)` -> `(.., U)`
-            (&ty::Tuple(tys_a), &ty::Tuple(tys_b)) => {
-                if tys_a.len() == tys_b.len() {
-                    candidates.vec.push(BuiltinUnsizeCandidate);
-                }
-            }
+            (&ty::Tuple(tys_a), &ty::Tuple(tys_b)) => tys_a.len() == tys_b.len(),
 
-            _ => {}
+            _ => false,
         };
+
+        if may_apply {
+            candidates.vec.push(BuiltinUnsizeCandidate);
+        }
     }
 
     fn assemble_candidates_for_trait_alias(

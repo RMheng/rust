@@ -1,5 +1,6 @@
 // force-host
 
+#![feature(plugin_registrar)]
 #![feature(box_syntax, rustc_private)]
 
 extern crate rustc_ast;
@@ -28,8 +29,8 @@ impl EarlyLintPass for Pass {
     }
 }
 
-#[no_mangle]
-fn __rustc_plugin_registrar(reg: &mut Registry) {
+#[plugin_registrar]
+pub fn plugin_registrar(reg: &mut Registry) {
     reg.lint_store.register_lints(&[&TEST_LINT]);
     reg.lint_store.register_early_pass(|| box Pass);
 }

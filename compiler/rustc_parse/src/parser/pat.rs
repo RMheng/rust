@@ -763,7 +763,7 @@ impl<'a> Parser<'a> {
 
         let sp = self.sess.source_map().start_point(self.token.span);
         if let Some(sp) = self.sess.ambiguous_block_expr_parse.borrow().get(&sp) {
-            self.sess.expr_parentheses_needed(&mut err, *sp);
+            self.sess.expr_parentheses_needed(&mut err, *sp, None);
         }
 
         Err(err)

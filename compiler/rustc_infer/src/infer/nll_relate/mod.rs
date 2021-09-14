@@ -22,7 +22,6 @@
 //!   constituents)
 
 use crate::infer::combine::ConstEquateRelation;
-use crate::infer::type_variable::Diverging;
 use crate::infer::InferCtxt;
 use crate::infer::{ConstVarValue, ConstVariableValue};
 use rustc_data_structures::fx::FxHashMap;
@@ -202,7 +201,6 @@ where
         };
 
         value.skip_binder().visit_with(&mut ScopeInstantiator {
-            tcx: self.infcx.tcx,
             next_region: &mut next_region,
             target_index: ty::INNERMOST,
             bound_region_scope: &mut scope,
@@ -308,7 +306,7 @@ where
     /// relations between `'0` and `'a`).
     ///
     /// The variable `pair` can be either a `(vid, ty)` or `(ty, vid)`
-    /// -- in other words, it is always an (unresolved) inference
+    /// -- in other words, it is always a (unresolved) inference
     /// variable `vid` and a type `ty` that are being related, but the
     /// vid may appear either as the "a" type or the "b" type,
     /// depending on where it appears in the tuple. The trait
@@ -390,7 +388,7 @@ where
     }
 }
 
-/// When we instantiate an inference variable with a value in
+/// When we instantiate a inference variable with a value in
 /// `relate_ty_var`, we always have the pair of a `TyVid` and a `Ty`,
 /// but the ordering may vary (depending on whether the inference
 /// variable was found on the `a` or `b` sides). Therefore, this trait
@@ -758,7 +756,6 @@ where
 /// `for<..`>.  For each of those, it creates an entry in
 /// `bound_region_scope`.
 struct ScopeInstantiator<'me, 'tcx> {
-    tcx: TyCtxt<'tcx>,
     next_region: &'me mut dyn FnMut(ty::BoundRegion) -> ty::Region<'tcx>,
     // The debruijn index of the scope we are instantiating.
     target_index: ty::DebruijnIndex,
@@ -766,10 +763,6 @@ struct ScopeInstantiator<'me, 'tcx> {
 }
 
 impl<'me, 'tcx> TypeVisitor<'tcx> for ScopeInstantiator<'me, 'tcx> {
-    fn tcx_for_anon_const_substs(&self) -> Option<TyCtxt<'tcx>> {
-        Some(self.tcx)
-    }
-
     fn visit_binder<T: TypeFoldable<'tcx>>(
         &mut self,
         t: &ty::Binder<'tcx, T>,
@@ -927,8 +920,7 @@ where
                             // Replacing with a new variable in the universe `self.universe`,
                             // it will be unified later with the original type variable in
                             // the universe `_universe`.
-                            let new_var_id =
-                                variables.new_var(self.universe, Diverging::NotDiverging, origin);
+                            let new_var_id = variables.new_var(self.universe, false, origin);
 
                             let u = self.tcx().mk_ty_var(new_var_id);
                             debug!("generalize: replacing original vid={:?} with new={:?}", vid, u);

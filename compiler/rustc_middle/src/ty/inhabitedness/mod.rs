@@ -9,7 +9,7 @@ use crate::ty::{DefId, SubstsRef};
 
 mod def_id_forest;
 
-// The methods in this module calculate `DefIdForest`s of modules in which an
+// The methods in this module calculate `DefIdForest`s of modules in which a
 // `AdtDef`/`VariantDef`/`FieldDef` is visibly uninhabited.
 //
 // # Example

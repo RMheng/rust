@@ -7,7 +7,7 @@ const fn f(x: usize) -> usize {
         //~| ERROR calls in constant functions
         //~| ERROR calls in constant functions
         //~| ERROR E0080
-        //~| ERROR `for` is not allowed in a `const fn`
+        //~| ERROR E0744
         sum += i;
     }
     sum
