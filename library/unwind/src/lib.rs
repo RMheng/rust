@@ -3,7 +3,7 @@
 #![feature(link_cfg)]
 #![feature(nll)]
 #![feature(staged_api)]
-#![feature(unwind_attributes)]
+//#![feature(unwind_attributes)]
 #![feature(static_nobundle)]
 #![cfg_attr(not(target_env = "msvc"), feature(libc))]
 
