@@ -327,6 +327,7 @@
 #![feature(try_reserve)]
 #![feature(unboxed_closures)]
 #![feature(unsafe_cell_raw_get)]
+//#![feature(c_unwind)]
 #![feature(unwind_attributes)]
 #![feature(unwrap_infallible)]
 #![feature(vec_into_raw_parts)]

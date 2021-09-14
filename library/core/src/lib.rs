@@ -145,6 +145,7 @@
 #![feature(try_blocks)]
 #![feature(unboxed_closures)]
 #![feature(unsized_fn_params)]
+//#![feature(c_unwind)]
 #![feature(unwind_attributes)]
 #![feature(variant_count)]
 #![feature(tbm_target_feature)]
