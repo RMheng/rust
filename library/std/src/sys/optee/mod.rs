@@ -27,10 +27,15 @@ pub mod stack_overflow;
 pub mod stdio;
 pub mod thread;
 pub mod thread_local;
+pub mod thread_local_key;
 pub mod time;
 
 #[cfg(not(test))]
-pub fn init() { }
+pub fn init(argc: isize, argv: *const *const u8) { }
+
+// SAFETY: must be called only once during runtime cleanup.
+// NOTE: this is not guaranteed to run, for example when the program aborts.
+pub unsafe fn cleanup() {}
 
 pub fn unsupported<T>() -> crate::io::Result<T> {
     Err(unsupported_err())

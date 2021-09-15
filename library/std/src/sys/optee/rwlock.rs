@@ -69,6 +69,6 @@ impl RWLock {
     }
 
     #[inline]
-    pub unsafe fn destroy() {
+    pub unsafe fn destroy(&self) {
     }
 }
