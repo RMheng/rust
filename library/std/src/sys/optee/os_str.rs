@@ -10,13 +10,15 @@ use crate::sync::Arc;
 use crate::sys_common::{AsInner, IntoInner};
 use core::str::lossy::Utf8Lossy;
 
-#[derive(Clone, Hash)]
+#[derive(Hash)]
+#[repr(transparent)]
 pub struct Buf {
-    pub inner: Vec<u8>
+    pub inner: Vec<u8>,
 }
 
+#[repr(transparent)]
 pub struct Slice {
-    pub inner: [u8]
+    pub inner: [u8],
 }
 
 impl fmt::Debug for Slice {
@@ -40,6 +42,18 @@ impl fmt::Debug for Buf {
 impl fmt::Display for Buf {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self.as_slice(), formatter)
+    }
+}
+
+impl Clone for Buf {
+    #[inline]
+    fn clone(&self) -> Self {
+        Buf { inner: self.inner.clone() }
+    }
+
+    #[inline]
+    fn clone_from(&mut self, source: &Self) {
+        self.inner.clone_from(&source.inner)
     }
 }
 
@@ -98,8 +112,21 @@ impl Buf {
         self.inner.shrink_to(min_capacity)
     }
 
+    #[inline]
     pub fn as_slice(&self) -> &Slice {
+        // SAFETY: Slice just wraps [u8],
+        // and &*self.inner is &[u8], therefore
+        // transmuting &[u8] to &Slice is safe.
         unsafe { mem::transmute(&*self.inner) }
+    }
+
+
+    #[inline]
+    pub fn as_mut_slice(&mut self) -> &mut Slice {
+        // SAFETY: Slice just wraps [u8],
+        // and &mut *self.inner is &mut [u8], therefore
+        // transmuting &mut [u8] to &mut Slice is safe.
+        unsafe { mem::transmute(&mut *self.inner) }
     }
 
     pub fn into_string(self) -> Result<String, Buf> {
@@ -153,6 +180,10 @@ impl Slice {
         Buf { inner: self.inner.to_vec() }
     }
 
+    pub fn clone_into(&self, buf: &mut Buf) {
+        self.inner.clone_into(&mut buf.inner)
+    }
+
     #[inline]
     pub fn into_box(&self) -> Box<Slice> {
         let boxed: Box<[u8]> = self.inner.into();
@@ -174,6 +205,36 @@ impl Slice {
     pub fn into_rc(&self) -> Rc<Slice> {
         let rc: Rc<[u8]> = Rc::from(&self.inner);
         unsafe { Rc::from_raw(Rc::into_raw(rc) as *const Slice) }
+    }
+
+    #[inline]
+    pub fn make_ascii_lowercase(&mut self) {
+        self.inner.make_ascii_uppercase()
+    }
+
+    #[inline]
+    pub fn make_ascii_uppercase(&mut self) {
+        self.inner.make_ascii_uppercase()
+    }
+
+    #[inline]
+    pub fn to_ascii_lowercase(&self) -> Buf {
+        Buf { inner: self.inner.to_ascii_lowercase() }
+    }
+
+    #[inline]
+    pub fn to_ascii_uppercase(&self) -> Buf {
+        Buf { inner: self.inner.to_ascii_uppercase() }
+    }
+
+    #[inline]
+    pub fn is_ascii(&self) -> bool {
+        self.inner.is_ascii()
+    }
+
+    #[inline]
+    pub fn eq_ignore_ascii_case(&self, other: &Self) -> bool {
+        self.inner.eq_ignore_ascii_case(&other.inner)
     }
 }
 

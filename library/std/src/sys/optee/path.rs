@@ -3,12 +3,12 @@ use crate::ffi::OsStr;
 
 #[inline]
 pub fn is_sep_byte(b: u8) -> bool {
-    b = b'/'
+    b == b'/'
 }
 
 #[inline]
 pub fn is_verbatim_sep(b: u8) -> bool {
-    b = b'/'
+    b == b'/'
 }
 
 pub fn parse_prefix(_: &OsStr) -> Option<Prefix<'_>> {

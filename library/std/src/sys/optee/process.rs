@@ -1,17 +1,21 @@
 use crate::ffi::OsStr;
 use crate::fmt;
 use crate::io;
+use crate::marker::PhantomData;
+use crate::path::Path;
 use crate::sys::fs::File;
 use crate::sys::pipe::AnonPipe;
 use crate::sys::{unsupported, Void};
-use crate::sys_common::process::{CommandEnv, DefaultEnvKey};
+use crate::sys_common::process::{CommandEnv};
+
+pub use crate::ffi::OsString as EnvKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Command
 ////////////////////////////////////////////////////////////////////////////////
 
 pub struct Command {
-    env: CommandEnv<DefaultEnvKey>
+    env: CommandEnv,
 }
 
 // passed back to std::process with the pipes connected to the child, if any
@@ -38,7 +42,7 @@ impl Command {
     pub fn arg(&mut self, _arg: &OsStr) {
     }
 
-    pub fn env_mut(&mut self) -> &mut CommandEnv<DefaultEnvKey> {
+    pub fn env_mut(&mut self) -> &mut CommandEnv {
         &mut self.env
     }
 
@@ -58,6 +62,23 @@ impl Command {
         -> io::Result<(Process, StdioPipes)> {
         unsupported()
     }
+
+    pub fn get_program(&self) -> &OsStr {
+        panic!("unsupported")
+    }
+
+    pub fn get_args(&self) -> CommandArgs<'_> {
+        CommandArgs {_p: PhantomData }
+    }
+
+    pub fn get_envs(&self) -> CommandEnvs<'_> {
+        self.env.iter()
+    }
+
+    pub fn get_current_dir(&self) -> Option<&Path> {
+        None
+    }
+        
 }
 
 impl From<AnonPipe> for Stdio {
@@ -81,18 +102,18 @@ impl fmt::Debug for Command {
 pub struct ExitStatus(Void);
 
 impl ExitStatus {
-    pub fn success(&self) -> bool {
-        match self.0 {}
+    pub fn exit_ok(&self) -> Result<(), ExitStatusError> {
+        self.0
     }
 
     pub fn code(&self) -> Option<i32> {
-        match self.0 {}
+        self.0
     }
 }
 
 impl Clone for ExitStatus {
     fn clone(&self) -> ExitStatus {
-        match self.0 {}
+        self.0 {}
     }
 }
 
@@ -100,7 +121,7 @@ impl Copy for ExitStatus {}
 
 impl PartialEq for ExitStatus {
     fn eq(&self, _other: &ExitStatus) -> bool {
-        match self.0 {}
+        self.0 {}
     }
 }
 
@@ -109,15 +130,18 @@ impl Eq for ExitStatus {
 
 impl fmt::Debug for ExitStatus {
     fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0 {}
+        self.0 {}
     }
 }
 
 impl fmt::Display for ExitStatus {
     fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0 {}
+        self.0 {}
     }
 }
+
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+pub struct ExitStatusError(ExitStatus);
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub struct ExitCode(bool);
@@ -151,3 +175,6 @@ impl Process {
     }
 }
 
+pub struct CommandArgs<'a> {
+    _p: PhantomData<&'a ()>,
+}

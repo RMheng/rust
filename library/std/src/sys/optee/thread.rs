@@ -2,6 +2,7 @@ use crate::ffi::CStr;
 use crate::io;
 use crate::sys::{unsupported, Void};
 use crate::time::Duration;
+use crate::num::NonZeroUsize;
 
 pub struct Thread(Void);
 
@@ -29,6 +30,10 @@ impl Thread {
     pub fn join(self) {
         match self.0 {}
     }
+}
+
+pub fn available_concurrency() -> io::Result<NonZeroUsize> {
+    unsupported()
 }
 
 pub mod guard {

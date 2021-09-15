@@ -277,6 +277,10 @@ pub fn readlink(_p: &Path) -> io::Result<PathBuf> {
     unsupported()
 }
 
+pub fn try_exists(_path: &Path) -> io::Result<bool> {
+    unsupported()
+}
+
 pub fn symlink(_src: &Path, _dst: &Path) -> io::Result<()> {
     unsupported()
 }

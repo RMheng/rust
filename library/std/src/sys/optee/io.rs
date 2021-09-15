@@ -1,3 +1,4 @@
+#[derive(Copy, Clone)]
 pub struct IoSlice<'a>(&'a [u8]);
 
 impl<'a> IoSlice<'a> {
