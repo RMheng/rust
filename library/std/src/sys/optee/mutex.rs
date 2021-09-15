@@ -52,7 +52,7 @@ pub struct ReentrantMutex {
 }
 
 impl ReentrantMutex {
-    pub unsafe fn uninitialized() -> ReentrantMutex {
+    pub const fn uninitialized() -> ReentrantMutex {
         ReentrantMutex { }
     }
 

@@ -59,7 +59,7 @@ pub unsafe fn strlen(mut _s: *const c_char) -> usize {
     0
 }
 
-pub unsafe fn abort_internal() -> ! {
+pub fn abort_internal() -> ! {
     loop { }
 }
 
